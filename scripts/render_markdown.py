@@ -38,8 +38,14 @@ def _interpret_tau(tau: float) -> str:
 
 
 def _load_qbank() -> dict:
+    """Load the question-bank JSON used to render option labels in the report."""
     with open(QBANK_PATH, encoding="utf-8") as f:
         return json.load(f)
+
+
+def _md_cell(s: str) -> str:
+    """Escape characters that would break a GFM table cell."""
+    return str(s).replace("|", "\\|")
 
 
 def _option_label(qbank: dict, qid: str, key: str) -> str:
@@ -125,7 +131,7 @@ def _section_subjective_vs_algo(result: dict) -> list[str]:
     lines.append("|---|---|---|---|---|")
     for i, (s, a) in enumerate(zip(result["subjective_rank"], result["algorithm_rank"]), 1):
         mark = "✅" if s == a else "↔"
-        lines.append(f"| {i} | {s} | {mark} | {i} | {a} |")
+        lines.append(f"| {i} | {_md_cell(s)} | {mark} | {i} | {_md_cell(a)} |")
     tau = result["kendall_tau"]
     lines.append("")
     lines.append(f"一致度 Kendall τ = **{tau:+.2f}** — {_interpret_tau(tau)}")
@@ -142,7 +148,7 @@ def _section_score_table(result: dict) -> list[str]:
         d = result["majors"][name]
         bottleneck = DIMENSION_LABELS[d["bottleneck"]]
         lines.append(
-            f"| {i} | {name} | **{d['total']}** | "
+            f"| {i} | {_md_cell(name)} | **{d['total']}** | "
             f"{GRADE_BADGE[d['grade']]} {d['grade']} | {bottleneck} |"
         )
     lines.append("")

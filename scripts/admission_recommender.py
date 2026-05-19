@@ -11,11 +11,11 @@ applied as a multiplier: final = ADI × (min_factor + range × admission_score).
 """
 import argparse
 import json
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
 
-from scripts.score_engine import load_weights
+from scripts.score_engine import derive_risk_appetite, load_weights
 
 _REFERENCES = Path(__file__).resolve().parent.parent / "references"
 PROVINCES_PATH = _REFERENCES / "provinces.json"
@@ -53,16 +53,20 @@ class StudentProfile:
     """Captures all info needed for admission recommendation.
 
     Attributes:
-        province: 省份名（中文），用于推断 mode。
-        mode: 高考模式（"3+3" / "3+1+2" / "traditional" 等）；若空则从 province 推断。
-        track: 传统模式专用 "理" / "文"；新高考模式应留空。
-        scores: 各科目原始分 dict，语数外 0-150，选考 0-100，理综/文综 0-300。
-        electives: 选考科目名列表。3+3 = 3 项；3+1+2 = 1 首选 + 2 再选。
-        favorite_subjects / disliked_subjects: 用户偏好（1-3 项各）。
+        province: Province name (Chinese), used to infer mode.
+        mode: Gaokao mode ("3+3" / "3+1+2" / "traditional"); inferred from
+            province when empty.
+        track: Traditional-mode track "理" / "文"; left empty for new-gaokao modes.
+        scores: Raw score per subject. Chinese/Math/English are 0-150,
+            electives 0-100, combined science/humanities 0-300.
+        electives: Elective subject names. 3+3 = 3 entries; 3+1+2 = 1 primary +
+            2 secondary.
+        favorite_subjects: User-stated favorites (1-3 entries).
+        disliked_subjects: User-stated dislikes (1-3 entries).
     """
     province: str
     mode: str = ""
-    track: Optional[str] = None
+    track: str | None = None
     scores: dict[str, int] = field(default_factory=dict)
     electives: list[str] = field(default_factory=list)
     favorite_subjects: list[str] = field(default_factory=list)
@@ -96,6 +100,7 @@ def resolve_mode(province: str, override: str = "") -> str:
 
 
 def _max_for(subject: str) -> int:
+    """Return the maximum raw score for `subject`; defaults to elective max."""
     return _SUBJECT_MAX.get(subject, _ELECTIVE_MAX)
 
 
@@ -119,11 +124,13 @@ def is_eligible(student: StudentProfile, admission: dict) -> tuple[bool, str]:
 
     if student.mode == "3+1+2":
         primary_req = admission.get("required_primary")
-        student_primary = next(
-            (e for e in student.electives if e in ("物理", "历史")), None,
-        )
-        if primary_req and student_primary and primary_req != student_primary:
-            return False, f"首选要求{primary_req}，你选了{student_primary}"
+        if primary_req and primary_req not in set(student.electives):
+            wrong = next(
+                (e for e in student.electives if e in ("物理", "历史")), None,
+            )
+            if wrong:
+                return False, f"首选要求{primary_req}，你选了{wrong}"
+            return False, f"首选要求{primary_req}，你未选"
 
     chosen_set = set(student.electives)
     for req in admission.get("required_electives_all", []) or []:
@@ -169,15 +176,18 @@ def soft_filter(
     student: StudentProfile, admission: dict,
     weights: dict | None = None,
 ) -> tuple[bool, str]:
-    """Soft filter: 3 layers — absolute weakness, relative偏科, disliked-conflict.
+    """Soft filter with three layers: absolute, relative, and disliked-conflict.
 
-    Layer 1 (absolute, original): soft_thresholds 使用原始分阈值（语数外 0-150；
-        选考 0-100；理综/文综 0-300）。任一 key_subject 低于阈值 → not_recommended。
-    Layer 2 (v1.9 relative偏科): 学生自身归一化分数均值减 relative_gap 视作偏科线，
-        任一 key_subject 权重 ≥ weights_threshold 且学生归一化分低于该线 → 偏科 →
-        not_recommended。低分省/弱学生场景下 L1 都过不了时 L2 仍能给出有意义信号。
-    Layer 3 (disliked): 用户明确不喜欢的科目若是 key_subject 权重 ≥ weights_threshold
-        → 拦截。
+    Layer 1 (absolute): soft_thresholds uses raw-score floors (Chinese/Math/
+        English 0-150; electives 0-100; combined science/humanities 0-300).
+        Any key_subject below threshold yields not_recommended.
+    Layer 2 (v1.9 relative skew): the student's own normalized-score mean
+        minus relative_gap is treated as a skew line; any key_subject with
+        weight >= weights_threshold whose normalized score falls below the
+        line is flagged. This keeps Layer 1-pass students with a weak core
+        subject from slipping through.
+    Layer 3 (disliked-conflict): when a user-disliked subject is a key
+        subject with weight >= weights_threshold, the major is rejected.
     """
     cfg = _resolve_soft_filter_relative(weights)
 
@@ -213,6 +223,7 @@ def soft_filter(
 
 
 def _categorize(score: float, eligible: bool, recommended: bool) -> str:
+    """Bucket a (score, eligibility, recommendation) tuple into a category label."""
     if not eligible:
         return "ineligible"
     if not recommended:
@@ -240,8 +251,8 @@ def _resolve_admission_majors(admission_data: dict) -> dict:
 
 def recommend(
     student: StudentProfile,
-    admission_data: Optional[dict] = None,
-    top_n: Optional[int] = None,
+    admission_data: dict | None = None,
+    top_n: int | None = None,
 ) -> list[dict]:
     """Run the recommendation pipeline for all majors in the admission table.
 
@@ -278,42 +289,33 @@ def recommend(
     return out[:top_n] if top_n else out
 
 
-def derive_risk_appetite(answers: dict, weights: dict) -> str:
-    """Map (Q1, Q18) → appetite level via weights.q1_q18_to_appetite.
-
-    Six possible outputs (v1.7+):
-      strong_averse / averse / neutral / seeking / strong_seeking / contradiction
-
-    'contradiction' fires on AC/CA pairs (stable+seeking or above-ceiling+averse).
-    SKILL.md cross-validation prompts the user before producing the report.
-
-    If Q01 or Q18 is missing from `answers` (e.g., this is called before the
-    questionnaire finishes), both default to "B" → resolves to "neutral".
-    Final fallback "neutral" only fires on weights.json misconfiguration.
-    """
-    q1 = answers.get("Q01") or "B"
-    q18 = answers.get("Q18") or "B"
-    return weights.get("q1_q18_to_appetite", {}).get(q1 + q18, "neutral")
-
-
 def main() -> None:
-    """CLI: read student profile JSON, print ranked recommendations."""
+    """CLI: read student profile JSON, print ranked recommendations.
+
+    Wraps the pipeline in a single try/except so callers get a stable
+    `[gaokao-adi] ERROR: <Type>: <message>` envelope on stderr with exit
+    code 2, matching run_assessment.py's contract.
+    """
     parser = argparse.ArgumentParser(description="Major recommendation by gaokao scores")
     parser.add_argument("--input", required=True, help="Path to student profile JSON")
     parser.add_argument("--top", type=int, default=15)
     args = parser.parse_args()
-    with open(args.input, encoding="utf-8") as f:
-        data = json.load(f)
-    student = StudentProfile(
-        province=data.get("province", ""),
-        mode=data.get("mode") or resolve_mode(data.get("province", "")),
-        track=data.get("track"),
-        scores=data.get("scores", {}),
-        electives=data.get("electives", []),
-        favorite_subjects=data.get("favorite_subjects", []),
-        disliked_subjects=data.get("disliked_subjects", []),
-    )
-    results = recommend(student, top_n=args.top)
+    try:
+        with open(args.input, encoding="utf-8") as f:
+            data = json.load(f)
+        student = StudentProfile(
+            province=data.get("province", ""),
+            mode=data.get("mode") or resolve_mode(data.get("province", "")),
+            track=data.get("track"),
+            scores=data.get("scores", {}),
+            electives=data.get("electives", []),
+            favorite_subjects=data.get("favorite_subjects", []),
+            disliked_subjects=data.get("disliked_subjects", []),
+        )
+        results = recommend(student, top_n=args.top)
+    except (OSError, json.JSONDecodeError, KeyError, ValueError) as exc:
+        print(f"[gaokao-adi] ERROR: {type(exc).__name__}: {exc}", file=sys.stderr)
+        sys.exit(2)
     print(json.dumps(results, ensure_ascii=False, indent=2))
 
 

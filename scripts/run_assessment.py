@@ -32,7 +32,9 @@ def run(input_path: Path, out_dir: Path, markdown_only: bool = False) -> dict:
         input_data = json.load(f)
     result = compute_all(input_data)
     out_dir.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    # Millisecond precision avoids silent overwrite when two runs land
+    # in the same wall-clock second.
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")[:-3]
     md_path = out_dir / f"gaokao-adi-report-{timestamp}.md"
     md_path.write_text(render_md(result), encoding="utf-8")
     html_path = None
@@ -52,7 +54,7 @@ def main() -> None:
 
     try:
         out = run(Path(args.input), Path(args.out_dir), args.markdown_only)
-    except (FileNotFoundError, json.JSONDecodeError, KeyError, ValueError) as exc:
+    except (OSError, json.JSONDecodeError, KeyError, ValueError) as exc:
         print(f"[gaokao-adi] ERROR: {type(exc).__name__}: {exc}", file=sys.stderr)
         sys.exit(2)
 

@@ -10,7 +10,7 @@ conversation layer and is passed in as `_session_overrides`.
 import argparse
 import json
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 _REFERENCES = Path(__file__).resolve().parent.parent / "references"
 BASELINE_PATH = _REFERENCES / "baseline_adi.json"
@@ -83,6 +83,8 @@ def kendall_tau(seq_a: list, seq_b: list) -> float:
     n = len(seq_a)
     if n < 2:
         return 1.0
+    if len(set(seq_a)) != n or len(set(seq_b)) != n:
+        raise ValueError("Sequences must not contain duplicate items")
     idx_b = {item: i for i, item in enumerate(seq_b)}
     concordant = 0
     discordant = 0
@@ -97,6 +99,7 @@ def kendall_tau(seq_a: list, seq_b: list) -> float:
 
 
 def _clamp(value: float) -> float:
+    """Clamp `value` to [CLAMP_MIN, CLAMP_MAX]."""
     return max(CLAMP_MIN, min(CLAMP_MAX, value))
 
 
@@ -124,6 +127,8 @@ def _resolve_baseline(
     user_add = baseline.get("_user_additions", {}) or {}
     if canonical in user_add:
         return user_add[canonical], "user_addition"
+    if canonical in session_overrides:
+        return session_overrides[canonical], "session_override"
     if major_name in session_overrides:
         return session_overrides[major_name], "session_override"
     raise ValueError(
@@ -325,11 +330,30 @@ def _find_top_drag(dim_results: dict) -> dict | None:
     return worst
 
 
-def _resolve_risk_appetite(answers: dict, weights: dict) -> str:
-    """Map Q1+Q18 → risk_appetite level via weights.q1_q18_to_appetite."""
+def derive_risk_appetite(answers: dict, weights: dict) -> str:
+    """Map Q1+Q18 answers to a risk appetite level.
+
+    Six possible outputs (v1.7+): strong_averse / averse / neutral / seeking /
+    strong_seeking / contradiction. 'contradiction' fires on AC/CA pairs.
+
+    Defaults Q01 and Q18 to 'B' when missing so the function is safe to call
+    before the questionnaire finishes. Final 'neutral' fallback only fires
+    on misconfigured weights.json.
+
+    Args:
+        answers: Questionnaire answers keyed by question id.
+        weights: Loaded weights dict (must contain q1_q18_to_appetite).
+
+    Returns:
+        Appetite level string.
+    """
     q1 = answers.get("Q01") or "B"
     q18 = answers.get("Q18") or "B"
     return weights.get("q1_q18_to_appetite", {}).get(q1 + q18, "neutral")
+
+
+# Legacy alias for internal call sites.
+_resolve_risk_appetite = derive_risk_appetite
 
 
 def _resolve_tie_break_weights(
@@ -367,7 +391,7 @@ def _appetite_sort_key(
     return (-total, -_compute_tie_break_score(major_result, weights_vec))
 
 
-def _apply_admission_blend(adi_total: float, admission_score: Optional[float],
+def _apply_admission_blend(adi_total: float, admission_score: float | None,
                             weights: dict) -> tuple[float, float]:
     """Combine raw ADI with admission_score → final.
 
@@ -390,7 +414,7 @@ def compute_major(
     baseline: dict,
     weights: dict,
     session_overrides: dict,
-    admission_score: Optional[float] = None,
+    admission_score: float | None = None,
 ) -> dict:
     """Compute personalized ADI for a single major."""
     base_data, source = _resolve_baseline(major_name, baseline, session_overrides)
@@ -494,8 +518,12 @@ def compute_extras(
                 admission_score=adm_score,
             )
             results.append(res)
-        except ValueError:
-            continue
+        except ValueError as e:
+            # Only swallow "major not in any baseline source" errors;
+            # surface every other ValueError so real bugs are not masked.
+            if "基础 ADI 缺失" in str(e):
+                continue
+            raise
     results.sort(key=lambda r: -r["total"])
     return results[:n], warning
 

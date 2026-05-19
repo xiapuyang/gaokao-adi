@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 
 from scripts.render_markdown import (
+    APPETITE_LABELS,
     DIMENSION_LABELS,
     TAU_INTERPRETATION,
     _generate_advice,
@@ -17,12 +18,12 @@ from scripts.render_markdown import (
     _load_qbank,
     _option_label,
 )
+from scripts.score_engine import DIMENSION_KEYS as DIM_ORDER
 
 _BASE = Path(__file__).resolve().parent.parent
 TEMPLATE_PATH = _BASE / "assets" / "report_template.html"
 
 GRADE_COLOR = {"低难": "#2da45e", "中等": "#d9b13a", "较难": "#e07a3a", "高难": "#c43c4d"}
-DIM_ORDER: tuple[str, ...] = ("paths", "reach", "correct", "recover")
 
 _Q_SHORT_LABEL = {
     "Q08": "学习能力", "Q09": "难度承受", "Q10": "试错能力",
@@ -39,6 +40,7 @@ _WHEN_PRIORITY_RULES = {
 
 
 def _esc(s: str) -> str:
+    """HTML-escape `s` for safe interpolation into element content and attributes."""
     return html.escape(str(s), quote=True)
 
 
@@ -81,20 +83,10 @@ def _contributor_li(c: dict, css_class: str, prefix: str, pct_fmt: str) -> str:
     return f'<li class="{css_class}">{prefix}：{_esc(tag)} 把「{_esc(dim_label)}」{pct_str}</li>'
 
 
-_APPETITE_LABELS = {
-    "strong_averse": "强求稳",
-    "averse": "偏求稳",
-    "neutral": "中立权衡",
-    "seeking": "偏进取",
-    "strong_seeking": "强进取",
-    "contradiction": "信号矛盾",
-}
-
-
 def _overview_chips(meta: dict, qbank: dict) -> str:
     """Render five user-profile chips, including derived risk_appetite."""
     appetite = meta.get("risk_appetite", "neutral")
-    appetite_label = _APPETITE_LABELS.get(appetite, "中立权衡")
+    appetite_label = APPETITE_LABELS.get(appetite, "中立权衡")
     if appetite == "contradiction":
         appetite_label = f"⚠️ {appetite_label}（Q1×Q18 反向）"
     items = [
@@ -289,9 +281,9 @@ def _phase_c_summary(d: dict, rank: int) -> str:
     )
     adm = d.get("admission_score")
     if adm is not None:
-        if adm >= 0.85:
+        if adm >= 0.75:
             parts.append(f"招生匹配度 {adm:.0%}，属于强匹配。")
-        elif adm >= 0.60:
+        elif adm >= 0.55:
             parts.append(f"招生匹配度 {adm:.0%}，可考虑。")
         else:
             parts.append(f"招生匹配度 {adm:.0%}，偏低。")
@@ -302,11 +294,11 @@ def _phase_c_summary(d: dict, rank: int) -> str:
 
 
 def _load_admission_data() -> dict:
-    """Lazy load admission data for Phase B; empty dict if file missing."""
+    """Lazy load admission data for Phase B; empty dict on missing/malformed file."""
     try:
         from scripts.admission_recommender import load_admission
         return load_admission()
-    except Exception:
+    except (FileNotFoundError, json.JSONDecodeError):
         return {"majors": {}}
 
 
@@ -440,11 +432,13 @@ def _extras_section_html(result: dict) -> str:
 
 
 def _advice_html(result: dict) -> str:
+    """Render the advice bullet list (sourced from _generate_advice)."""
     items = _generate_advice(result)
     return "".join(f"<li>{_esc(it.lstrip('- '))}</li>" for it in items)
 
 
 def _confidence_warning(meta: dict) -> str:
+    """Render the optional low-confidence and session-inferred warning banners."""
     parts = []
     if meta.get("low_confidence"):
         parts.append(
@@ -524,8 +518,12 @@ def render(result: dict, template_path: Path = TEMPLATE_PATH) -> str:
         "{{major_cards}}": _major_cards_html(result),
         "{{advice_list}}": _advice_html(result),
         "{{extras_section}}": _extras_section_html(result),
-        "{{radar_data_json}}": json.dumps(_radar_data(result), ensure_ascii=False),
-        "{{bar_data_json}}": json.dumps(_bar_data(result), ensure_ascii=False),
+        # Escape `</` inside JSON to prevent breaking out of <script> blocks
+        # if a major name happens to contain a literal closing-tag substring.
+        "{{radar_data_json}}":
+            json.dumps(_radar_data(result), ensure_ascii=False).replace("</", "<\\/"),
+        "{{bar_data_json}}":
+            json.dumps(_bar_data(result), ensure_ascii=False).replace("</", "<\\/"),
     }
     for k, v in subs.items():
         tpl = tpl.replace(k, v)
