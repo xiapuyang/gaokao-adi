@@ -131,17 +131,17 @@ def test_soft_filter_rejects_weak_key_subject(majors):
     assert "化学" in reason
 
 
-def test_soft_filter_l1_skipped_for_favorite_subject():
-    """v3.5: 学生喜欢某科目时，L1 不再卡该科目的阈值。
+def test_soft_filter_l1_favorite_passes_within_20pct_buffer():
+    """v3.7: 喜欢科目命中 L1 时，阈值放宽 20%（threshold × 0.80）。
 
-    用合成 admission dict 隔离 L1 行为（key_subjects 中 物理 weight < 0.25
-    避免 L2 相对短板拦截，max_stem_w ≥ 0.30 避免 L4 cross-track）。"""
-    student_no_fav = StudentProfile(
+    物理阈值 60 → 生效 48；学生 物理=55 ≥ 48 → 应通过。
+    非 favorite 同样的 55 < 60 应被拦（证明 buffer 而非旁观）。"""
+    no_fav = StudentProfile(
         province="陕西", mode="3+1+2", electives=["物理", "化学", "生物"],
         scores={"语文": 120, "数学": 130, "外语": 120,
                 "物理": 55, "化学": 75, "生物": 75},
     )
-    student_with_fav = StudentProfile(
+    with_fav = StudentProfile(
         province="陕西", mode="3+1+2", electives=["物理", "化学", "生物"],
         scores={"语文": 120, "数学": 130, "外语": 120,
                 "物理": 55, "化学": 75, "生物": 75},
@@ -156,12 +156,105 @@ def test_soft_filter_l1_skipped_for_favorite_subject():
                          "语文": 0.20, "物理": 0.10, "化学": 0.10},
         "soft_thresholds": {"物理": 60},
     }
-    ok_no_fav, why_no_fav = soft_filter(student_no_fav, synth_major)
+    ok_no_fav, why_no_fav = soft_filter(no_fav, synth_major)
     assert ok_no_fav is False, "L1 应拦 物理=55<60"
     assert "物理" in why_no_fav
 
-    ok_fav, why_fav = soft_filter(student_with_fav, synth_major)
-    assert ok_fav is True, f"喜欢物理时 L1 应跳过该科目阈值，被拒原因: {why_fav}"
+    ok_fav, why_fav = soft_filter(with_fav, synth_major)
+    assert ok_fav is True, f"喜欢物理时 L1 应放宽到 48；55 应过；被拒原因: {why_fav}"
+
+
+def test_soft_filter_l1_favorite_still_rejects_below_buffered_floor():
+    """v3.7: favorite buffer 不是无脑放过——分数低于放宽后的阈值仍 reject。
+
+    物理阈值 60 → 生效 48；学生 物理=40 < 48 → 即使喜欢仍 reject。
+    防止「喜欢化学但化学考 40」这种 v3.5 时代的伪通过情形复现。"""
+    student = StudentProfile(
+        province="陕西", mode="3+1+2", electives=["物理", "化学", "生物"],
+        scores={"语文": 120, "数学": 130, "外语": 120,
+                "物理": 40, "化学": 75, "生物": 75},
+        favorite_subjects=["物理"],
+    )
+    synth_major = {
+        "required_primary": "物理",
+        "required_electives_all": [],
+        "required_electives_any": [],
+        "traditional_track": "理",
+        "key_subjects": {"数学": 0.40, "外语": 0.20,
+                         "语文": 0.20, "物理": 0.10, "化学": 0.10},
+        "soft_thresholds": {"物理": 60},
+    }
+    ok, reason = soft_filter(student, synth_major)
+    assert ok is False, "物理=40 低于放宽后阈值 48，喜欢也应拦"
+    assert "物理" in reason
+    assert "放宽" in reason, f"reject 消息应说明放宽后阈值：{reason}"
+
+
+def test_soft_filter_l2_favorite_relaxes_weights_threshold():
+    """v3.7: 喜欢科目命中 L2 时，weights_threshold 放宽 20%（0.25 → 0.30）。
+
+    权重 0.27 的 key_subject：base 触发（>= 0.25），favorite 命中不触发（< 0.30）。
+    用真实短板分数确认两边判断到了同一条路径，只是 weights gate 不同。"""
+    student_no_fav = StudentProfile(
+        province="陕西", mode="3+1+2", electives=["物理", "化学", "生物"],
+        scores={"语文": 140, "数学": 145, "外语": 140,
+                "物理": 60, "化学": 70, "生物": 70},
+    )
+    student_fav = StudentProfile(
+        province="陕西", mode="3+1+2", electives=["物理", "化学", "生物"],
+        scores={"语文": 140, "数学": 145, "外语": 140,
+                "物理": 60, "化学": 70, "生物": 70},
+        favorite_subjects=["物理"],
+    )
+    synth_major = {
+        "required_primary": "物理",
+        "required_electives_all": [],
+        "required_electives_any": [],
+        "traditional_track": "理",
+        "key_subjects": {"数学": 0.40, "物理": 0.27,
+                         "外语": 0.18, "语文": 0.15},
+        "soft_thresholds": {},
+    }
+    ok_no_fav, why_no_fav = soft_filter(student_no_fav, synth_major)
+    assert ok_no_fav is False, "权重 0.27 ≥ 0.25 应触发 L2；物理短板应被拦"
+    assert "物理" in why_no_fav
+
+    ok_fav, _ = soft_filter(student_fav, synth_major)
+    assert ok_fav is True, "喜欢物理时 L2 权重门槛升到 0.30，0.27 不再触发"
+
+
+def test_soft_filter_l2_favorite_adds_norm_buffer():
+    """v3.7: 喜欢科目命中 L2 高权重时，学生归一加 +0.05 buffer。
+
+    权重 0.40（远超 base 和 favorite 两个 weights_threshold），所以 weights buffer
+    不起作用——只验证 norm buffer。学生 物理 归一刚好低于 gap_line 0.03，
+    无 favorite 应拦；favorite +0.05 应通过。"""
+    student_no_fav = StudentProfile(
+        province="陕西", mode="3+1+2", electives=["物理", "化学", "生物"],
+        scores={"语文": 135, "数学": 138, "外语": 135,
+                "物理": 65, "化学": 75, "生物": 75},
+    )
+    student_fav = StudentProfile(
+        province="陕西", mode="3+1+2", electives=["物理", "化学", "生物"],
+        scores={"语文": 135, "数学": 138, "外语": 135,
+                "物理": 65, "化学": 75, "生物": 75},
+        favorite_subjects=["物理"],
+    )
+    synth_major = {
+        "required_primary": "物理",
+        "required_electives_all": [],
+        "required_electives_any": [],
+        "traditional_track": "理",
+        "key_subjects": {"物理": 0.40, "数学": 0.30,
+                         "外语": 0.15, "语文": 0.15},
+        "soft_thresholds": {},
+    }
+    ok_no_fav, why_no_fav = soft_filter(student_no_fav, synth_major)
+    assert ok_no_fav is False, "无 favorite 时物理短板应触发 L2"
+    assert "物理" in why_no_fav
+
+    ok_fav, why_fav = soft_filter(student_fav, synth_major)
+    assert ok_fav is True, f"favorite 给 +0.05 norm buffer 应推过 gap_line：{why_fav}"
 
 
 def test_soft_filter_disliked_conflict(majors):

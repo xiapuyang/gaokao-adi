@@ -192,14 +192,13 @@
       "required_electives_any": [],
       "traditional_track": "理",
       "key_subjects": {
-        "数学": 0.4,
-        "物理": 0.3,
+        "数学": 0.5,
+        "物理": 0.2,
         "外语": 0.15,
         "语文": 0.15
       },
       "soft_thresholds": {
-        "数学": 90,
-        "物理": 60
+        "数学": 90
       },
       "tags": [
         "数理逻辑",
@@ -217,14 +216,13 @@
       "required_electives_any": [],
       "traditional_track": "理",
       "key_subjects": {
-        "数学": 0.4,
-        "物理": 0.3,
+        "数学": 0.5,
+        "物理": 0.2,
         "外语": 0.15,
         "语文": 0.15
       },
       "soft_thresholds": {
-        "数学": 90,
-        "物理": 60
+        "数学": 90
       },
       "tags": [
         "数理逻辑",

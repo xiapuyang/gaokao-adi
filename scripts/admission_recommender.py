@@ -26,6 +26,9 @@ _DEFAULT_SOFT_FILTER_RELATIVE = {
     "relative_gap": 0.15,
     "favorite_fit_bonus": 0.05,
     "track_mismatch_stem_threshold": 0.30,
+    "favorite_l1_threshold_buffer": 0.20,
+    "favorite_l2_weights_buffer": 0.20,
+    "favorite_l2_norm_buffer": 0.05,
 }
 
 
@@ -42,6 +45,12 @@ def _resolve_soft_filter_relative(weights: dict | None = None) -> dict:
                                              _DEFAULT_SOFT_FILTER_RELATIVE["favorite_fit_bonus"])),
         "track_mismatch_stem_threshold": float(cfg.get("track_mismatch_stem_threshold",
                                                         _DEFAULT_SOFT_FILTER_RELATIVE["track_mismatch_stem_threshold"])),
+        "favorite_l1_threshold_buffer": float(cfg.get("favorite_l1_threshold_buffer",
+                                                       _DEFAULT_SOFT_FILTER_RELATIVE["favorite_l1_threshold_buffer"])),
+        "favorite_l2_weights_buffer": float(cfg.get("favorite_l2_weights_buffer",
+                                                     _DEFAULT_SOFT_FILTER_RELATIVE["favorite_l2_weights_buffer"])),
+        "favorite_l2_norm_buffer": float(cfg.get("favorite_l2_norm_buffer",
+                                                  _DEFAULT_SOFT_FILTER_RELATIVE["favorite_l2_norm_buffer"])),
     }
 
 _SUBJECT_MAX = {"语文": 150, "数学": 150, "外语": 150, "理综": 300, "文综": 300}
@@ -254,16 +263,27 @@ def soft_filter(
         (数学/应用数学/统计学 → 数学:120; 物理:80; 化学:80; 生物科学 → 生物:80;
         汉语言文学:120 语文; 英语/外语:120 外语) get specialty bumps because
         their major literally is the subject.
-        Favorite-subject skip: if the subject is in student.favorite_subjects
-        the threshold check is bypassed — stated affinity is a stronger
-        predictor of effort than a 5-point raw-score floor.
-    Layer 2 (v1.9 relative skew + v2.0 missing-subject reject):
-        For each key_subject with weight >= weights_threshold:
-        (a) if the student didn't take it at all (no score), reject —
-            the major depends on a subject outside the student's track.
-        (b) if the student's normalized score on it falls below
-            (self_avg - relative_gap), reject — relative short-board on
-            a core subject of the major.
+        Favorite-subject buffer (v3.7, replaces v3.5 skip): if the subject
+        is in student.favorite_subjects the effective threshold is
+        threshold × (1 - favorite_l1_threshold_buffer), default 0.20 buffer
+        → effective = threshold × 0.80. Rejection still happens if the raw
+        score falls below the relaxed line. Stated affinity is a strong
+        predictor of effort, but not a get-out-of-floor-free card; a 20%
+        relaxation captures "I'll catch up" intent without nullifying the
+        floor entirely (e.g. 喜欢化学=40 won't pass clinical-medicine's 60).
+    Layer 2 (v1.9 relative skew + v2.0 missing-subject reject + v3.7 favorite buffer):
+        For each key_subject:
+        (a) weight gate: trigger if weight >= effective_weights_threshold.
+            effective = weights_threshold × (1 + favorite_l2_weights_buffer)
+            when subj ∈ favorite_subjects, else weights_threshold. Default
+            0.25 base → 0.30 for favorites, sparing edge-weight majors.
+        (b) missing-subject reject: if the student didn't take it at all,
+            reject — the major depends on a subject outside the track.
+        (c) short-board reject: effective_norm = student_norm +
+            favorite_l2_norm_buffer (default +0.05) when subj ∈ favorites,
+            else student_norm. Reject if effective_norm < (self_avg -
+            relative_gap). Lets the favorite-and-weak combo through with
+            slack proportional to stated intent.
     Layer 3 (disliked-conflict): when a user-disliked subject is a key
         subject with weight >= weights_threshold, the major is rejected.
     Layer 4 (v2.5 cross-track): 理-track students (物理 primary in 3+1+2
@@ -273,12 +293,22 @@ def soft_filter(
         preference signal against majors that don't use that specialization.
     """
     cfg = _resolve_soft_filter_relative(weights)
+    favorites = set(student.favorite_subjects)
+    l1_buffer = cfg["favorite_l1_threshold_buffer"]
+    l2_weights_buffer = cfg["favorite_l2_weights_buffer"]
+    l2_norm_buffer = cfg["favorite_l2_norm_buffer"]
 
     for subj, threshold in (admission.get("soft_thresholds") or {}).items():
         raw = student.scores.get(subj)
         if raw is None:
             continue
-        if subj in student.favorite_subjects:
+        if subj in favorites:
+            effective_threshold = threshold * (1 - l1_buffer)
+            if raw < effective_threshold:
+                return False, (
+                    f"{subj}={raw} 低于建议阈值 {threshold}"
+                    f"（喜欢科目放宽 {int(l1_buffer * 100)}% 后 {effective_threshold:.0f}），不建议本专业"
+                )
             continue
         if raw < threshold:
             return False, f"{subj}={raw} 低于建议阈值 {threshold}，不建议本专业"
@@ -287,17 +317,25 @@ def soft_filter(
     if norm_scores:
         self_avg = sum(norm_scores.values()) / len(norm_scores)
         gap_line = self_avg - cfg["relative_gap"]
+        base_weights_threshold = cfg["weights_threshold"]
         for subj, weight in (admission.get("key_subjects") or {}).items():
-            if weight < cfg["weights_threshold"]:
+            is_fav = subj in favorites
+            effective_weights_threshold = (
+                base_weights_threshold * (1 + l2_weights_buffer) if is_fav
+                else base_weights_threshold
+            )
+            if weight < effective_weights_threshold:
                 continue
             student_norm = norm_scores.get(subj)
             if student_norm is None:
                 return False, (
                     f"你未考{subj}（本专业核心权重 {weight:.2f}），方向不匹配"
                 )
-            if student_norm < gap_line:
+            effective_norm = student_norm + (l2_norm_buffer if is_fav else 0.0)
+            if effective_norm < gap_line:
+                fav_note = f"+喜欢 buffer {l2_norm_buffer:.2f}" if is_fav else ""
                 return False, (
-                    f"{subj} 是你的相对短板（归一化 {student_norm:.2f} 低于"
+                    f"{subj} 是你的相对短板（归一化 {student_norm:.2f}{fav_note} 低于"
                     f"自身均值 {self_avg:.2f} 减 {cfg['relative_gap']}），"
                     f"且本专业权重 {weight:.2f}"
                 )
