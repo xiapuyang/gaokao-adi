@@ -1,0 +1,455 @@
+{
+  "_meta": {
+    "version": "1.3.0",
+    "date": "2026-05-18",
+    "source": "claude-inferred, anchored on 4 canonical majors from origin articles + 2025 China Employment Bluebook green/red signals + Anthropic Economic Index 2026",
+    "anchors": [
+      "计算机类 / 软件工程: 5x4x5x5=500 (原文)",
+      "电气工程 / 微电子 / 机械电子: 4x4x3x4=192 (原文)",
+      "法学: 2x2x1x2=8 (原文, 仅限纯法律职业路径)",
+      "临床医学: 1x3x1x1=3 (原文, 主观目标可达性约束)"
+    ],
+    "dimensions": ["paths", "reach", "correct", "recover"],
+    "scale": "1-5 per dimension; total = product, range 1-625",
+    "resource_sensitivity_doc": "Per-major sensitivity to family/personal resources. Levels: low/default/high/decisive. Numeric multipliers configurable in weights.json -> resource_sensitivity_levels.",
+    "ai_impact_doc": "Per-major AI impact level. Levels: boost/neutral/disrupted/threatened. Actual reach/paths delta depends on a 4x4 matrix of (ai_impact x ability_index from Q8-Q11).",
+    "rationale_schema_doc": "Every major's rationale is a 3-field object: {baseline, resource, ai_impact}. All three are required (enforced by test_rationale_three_layers_required). To extend with new layers (e.g. geography/policy), add the field here AND update render layer."
+  },
+  "majors": {
+    "数学": {
+      "paths": 4, "reach": 3, "correct": 5, "recover": 4,
+      "resource_sensitivity": "low",
+      "ai_impact": "boost",
+      "rationale": {
+        "baseline": "基础学科 paths 宽（可转 CS/金融/统计/教育/科研），correct 强（自学跨方向门槛低）；本科 reach 中等，深造需求高。",
+        "resource": "硬技能驱动，奥赛/学术成绩硬指标，资源加分微弱——所以 resource_sensitivity=low。",
+        "ai_impact": "AI 时代数学底层（统计/优化/线性代数）是核心，受益方向多；但也存在与 CS 类似的能力极化风险。"
+      }
+    },
+    "物理": {
+      "paths": 3, "reach": 3, "correct": 4, "recover": 3,
+      "resource_sensitivity": "low",
+      "ai_impact": "neutral",
+      "rationale": {
+        "baseline": "基础学科深造导向强；本科直接就业路径偏窄，主要靠考研转 CS/电子/光电等方向。",
+        "resource": "硬技能驱动，竞赛/论文为主要信号，资源加分微弱。",
+        "ai_impact": "AI 影响理论研究但本科就业链路改变有限——物理本科本就靠考研深造。"
+      }
+    },
+    "化学": {
+      "paths": 2, "reach": 3, "correct": 3, "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "rationale": {
+        "baseline": "实验室或化工方向为主，本科就业弱，paths 窄；考研可转材料/制药但有门槛。",
+        "resource": "化工/制药行业有一定关系敏感度（家族企业/内推）但不决定结果。",
+        "ai_impact": "AI 加速分子设计但本科就业链路（实验员/质检/工艺）变化有限。"
+      }
+    },
+    "生物科学": {
+      "paths": 2, "reach": 2, "correct": 2, "recover": 2,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "rationale": {
+        "baseline": "长期红牌专业，本科出路窄；非顶尖深造难有理想结果，转行需要从头开始。",
+        "resource": "家庭医疗/生物医药背景能帮助进实验室，但天花板仍受行业限制。",
+        "ai_impact": "AI 加速基因/蛋白研究但本科就业链路弱，加成稀薄。"
+      }
+    },
+    "统计学": {
+      "paths": 4, "reach": 4, "correct": 5, "recover": 4,
+      "resource_sensitivity": "low",
+      "ai_impact": "boost",
+      "rationale": {
+        "baseline": "数据时代风口，paths 宽（数据分析/金融/CS/精算），correct 强（自学跨方向容易），reach 较高。",
+        "resource": "硬技能驱动，Kaggle/项目作品为主要信号，资源加分微弱。",
+        "ai_impact": "AI 大模型底层即统计，方向直接受益；与 CS 类似存在能力极化风险。"
+      }
+    },
+    "应用数学": {
+      "paths": 4, "reach": 3, "correct": 5, "recover": 4,
+      "resource_sensitivity": "low",
+      "ai_impact": "boost",
+      "rationale": {
+        "baseline": "接近数学但更偏应用，转 CS/金融/精算路径成熟；reach 仍需深造或补专业技能。",
+        "resource": "硬技能驱动，资源加分微弱。",
+        "ai_impact": "AI 优化/数值方法/算法直接对口，方向受益明显。"
+      }
+    },
+    "数据科学 / 人工智能": {
+      "paths": 5, "reach": 4, "correct": 5, "recover": 5,
+      "resource_sensitivity": "low",
+      "ai_impact": "boost",
+      "rationale": {
+        "baseline": "2026 AI 风口源头，paths 宽（互联网/制造业/金融/政企），与 CS 类似但更前沿；correct 强（自学跨方向容易）。",
+        "resource": "硬技能驱动，论文/项目/竞赛硬指标，资源依赖最弱。",
+        "ai_impact": "完全 AI 时代受益型；但与 CS 一样存在「上限提高、下限降低」极化风险——能力弱的人也是 AI 要替代的对象。"
+      }
+    },
+    "计算机类 / 软件工程": {
+      "paths": 5, "reach": 4, "correct": 5, "recover": 5,
+      "resource_sensitivity": "low",
+      "ai_impact": "boost",
+      "rationale": {
+        "baseline": "原文标杆。技能跨行业、产业承接明确，纯开发不适合还可转产品/测试/数据分析/项目管理。",
+        "resource": "LeetCode/GitHub 硬指标，资源加分微弱——是「硬技能驱动」专业的代表。",
+        "ai_impact": "Anthropic 2026 数据：程序员观测暴露 74.5%（全行业最高），但同时是用 AI 最熟练的群体——典型「上限提高、下限降低」的极化效应：能力强用 AI 杠杆，能力弱被 AI 替代。"
+      }
+    },
+    "信息安全 / 网络工程": {
+      "paths": 4, "reach": 4, "correct": 4, "recover": 4,
+      "resource_sensitivity": "low",
+      "ai_impact": "neutral",
+      "rationale": {
+        "baseline": "CS 细分方向，安全/网络岗位需求稳定但路径比纯软件略窄；correct 仍强（可回归通用软件开发）。",
+        "resource": "硬技能驱动，CTF/证书/项目为主要信号，资源加分微弱。",
+        "ai_impact": "AI 在攻防两端都用，更像军备竞赛而非单向加持，net 中性。"
+      }
+    },
+    "电子信息工程": {
+      "paths": 4, "reach": 4, "correct": 3, "recover": 4,
+      "resource_sensitivity": "low",
+      "ai_impact": "neutral",
+      "rationale": {
+        "baseline": "电气族成员，硬件+软件结合，产业承接明确；纯硬件方向 correct 略弱（不易回软件）。",
+        "resource": "硬技能驱动，项目经验为主要信号；制造业有一定关系敏感度但仍以技能为主。",
+        "ai_impact": "AI 推升芯片/嵌入式需求但本科就业链路（IC/嵌入式/通信）稳定。"
+      }
+    },
+    "自动化": {
+      "paths": 4, "reach": 4, "correct": 3, "recover": 4,
+      "resource_sensitivity": "low",
+      "ai_impact": "neutral",
+      "rationale": {
+        "baseline": "工业自动化、机器人方向产业承接稳定，与电气工程一族。",
+        "resource": "硬技能驱动，项目作品为主要信号。",
+        "ai_impact": "AI 加持机器人但本科就业链路（PLC/嵌入式/工厂自动化）稳定。"
+      }
+    },
+    "电气工程": {
+      "paths": 4, "reach": 4, "correct": 3, "recover": 4,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "rationale": {
+        "baseline": "原文标杆。2025 就业蓝皮书绿牌，产业承接明确，国企/电网/制造业入口清晰。",
+        "resource": "国企/电网有一定关系敏感度（推荐/内部招聘）但技能仍是硬指标。",
+        "ai_impact": "强实体工程属性，AI 冲击有限——电网/电力系统的物理基础设施不会被 AI 替代。"
+      }
+    },
+    "机械工程": {
+      "paths": 4, "reach": 4, "correct": 3, "recover": 4,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "rationale": {
+        "baseline": "与电气族同档，制造业产业链承接稳定；近年新能源汽车/机器人增加新方向。",
+        "resource": "制造业有一定家族关系敏感度（家族工厂/供应商）但技能为主。",
+        "ai_impact": "强实体属性，AI 影响主要在设计辅助而非就业链路。"
+      }
+    },
+    "土木工程": {
+      "paths": 2, "reach": 3, "correct": 2, "recover": 2,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "rationale": {
+        "baseline": "2025 红牌，房地产/基建周期下行，paths 收窄；转行难（专业技能与其他领域迁移性低）。",
+        "resource": "建筑/设计院/施工单位有一定家族关系敏感度但行业整体下行，资源不能逆周期。",
+        "ai_impact": "低分主要来自行业周期下行，AI 影响有限——土木的本质是物理实体。"
+      }
+    },
+    "环境工程": {
+      "paths": 2, "reach": 2, "correct": 3, "recover": 2,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "rationale": {
+        "baseline": "长期红牌，岗位需求稀少；环保政策驱动但供需失衡严重，考研/转行路径成本高。",
+        "resource": "政府环保系统人脉对编制岗位有帮助但岗位总量小。",
+        "ai_impact": "AI 影响有限——环境监测/治理是实体行业问题。"
+      }
+    },
+    "临床医学": {
+      "paths": 1, "reach": 3, "correct": 1, "recover": 1,
+      "resource_sensitivity": "decisive",
+      "ai_impact": "neutral",
+      "rationale": {
+        "baseline": "原文标杆。培养周期长、规培+专培壁垒高、岗位与专业高度绑定；中途调整空间极有限，沉没成本巨大。",
+        "resource": "医二代在信息差/科室选择/规培医院选择/导师选择上有决定性优势——专业内部分层高度依赖家庭背景；普通家庭学生即使能进医学院，也很难进入好科室/好医院。",
+        "ai_impact": "AI 诊断辅助但医疗壁垒/执照/手术训练靠人，链路 net 中性——AI 改变了医生的工作方式但没改变行业准入。"
+      }
+    },
+    "口腔医学": {
+      "paths": 2, "reach": 3, "correct": 1, "recover": 2,
+      "resource_sensitivity": "high",
+      "ai_impact": "neutral",
+      "rationale": {
+        "baseline": "比临床医学略宽（可开诊所、市场化高），但仍是高锁定专业；规培和资格门槛与临床医学相似。",
+        "resource": "家族诊所/继承场景资源加成明显——直接对接经营/客源/品牌，是「家族企业」型专业的典型。",
+        "ai_impact": "AI 影响有限，主要靠操作技能（口腔种植/正畸是动手活）。"
+      }
+    },
+    "药学": {
+      "paths": 3, "reach": 3, "correct": 2, "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "rationale": {
+        "baseline": "制药/医院药房/医药销售等方向，paths 比临床医学宽；中药/西药、研发/生产路径有分化，correct 受执业药师资格限制。",
+        "resource": "医药销售/医院药房有一定家庭关系敏感度（医药代表/药店连锁等）。",
+        "ai_impact": "AI 加速药物研发但本科就业链路（药房/销售/质检）稳定。"
+      }
+    },
+    "护理学": {
+      "paths": 2, "reach": 4, "correct": 2, "recover": 2,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "rationale": {
+        "baseline": "就业稳定但路径单一、天花板低，paths 窄；转岗/转行需要重读其他专业。",
+        "resource": "医院系统人脉对编制岗位有帮助但天花板仍受行业限制。",
+        "ai_impact": "强人际接触，AI 不易替代——护理本质是情感劳动+操作技能。"
+      }
+    },
+    "经济学": {
+      "paths": 4, "reach": 3, "correct": 4, "recover": 4,
+      "resource_sensitivity": "default",
+      "ai_impact": "disrupted",
+      "rationale": {
+        "baseline": "原作亲自指认「经济学的路径宽度取值较高」；属「开放型底层训练」，毕业方向 8+ 个（金融/财务/互联网运营/数据分析/商业分析/考公/读研/产品/管理）。但路宽不等于自动成功——要走顺需主动叠加数据/金融/AI 技能。",
+        "resource": "对城市与平台敏感（资源高度集中大城市）；家庭资源对就业有帮助但不决定。",
+        "ai_impact": "AI 替代初级研究/报告/数据分析任务，但战略/咨询/政策仍需人。"
+      }
+    },
+    "金融学": {
+      "paths": 3, "reach": 2, "correct": 3, "recover": 3,
+      "resource_sensitivity": "high",
+      "ai_impact": "disrupted",
+      "rationale": {
+        "baseline": "原作定义为「高筛选职业路径」——成败在于能否进入头部平台/机构/城市；对学校、实习、圈子、资源、信息差敏感；一旦进入头部回报高，没进入差距迅速拉开。",
+        "resource": "家庭金融业人脉在实习推荐和圈子准入上有显著杠杆——是「资源决定上限」的典型，普通家庭学生难突破赢家通吃结构。",
+        "ai_impact": "Anthropic 数据：理论暴露 94% 但观测暴露 28%（行业采用 AI 慢），初级研究/风控自动化已成趋势但中高级仍需人。"
+      }
+    },
+    "工商管理": {
+      "paths": 3, "reach": 3, "correct": 4, "recover": 3,
+      "resource_sensitivity": "high",
+      "ai_impact": "disrupted",
+      "rationale": {
+        "baseline": "万金油专业，paths 看似宽实则分化；普通本科竞争力弱，需依赖实习/项目积累。",
+        "resource": "家族企业 / 行业人脉对求职帮助显著——管理岗位非标准化招聘，关系信号权重高。",
+        "ai_impact": "AI 替代 MBA 模板化分析/PPT/数据，但战略/谈判/客户关系仍需人。"
+      }
+    },
+    "市场营销": {
+      "paths": 3, "reach": 4, "correct": 4, "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "disrupted",
+      "rationale": {
+        "baseline": "实操导向，入门门槛低（B 端 / C 端营销岗多）；上限受公司平台限制，correct 易（可转产品/运营）。",
+        "resource": "家族企业/品牌资源有帮助但行业开放度高，资源不是决定性。",
+        "ai_impact": "AI 替代文案/数据分析/广告投放优化（Anthropic 数据：市场分析观测暴露 64.8% 极高），但创意策略/客户关系仍需人。"
+      }
+    },
+    "国际商务": {
+      "paths": 3, "reach": 3, "correct": 3, "recover": 3,
+      "resource_sensitivity": "high",
+      "ai_impact": "disrupted",
+      "rationale": {
+        "baseline": "外贸 / 跨境电商 / 涉外岗位为主，受地缘和宏观影响较大；近年路径明显收窄。",
+        "resource": "家族外贸生意或海外资源加成明显——人脉直接对应客户/供应链。",
+        "ai_impact": "AI 替代翻译/单证/合规检索/客户对接初级任务。"
+      }
+    },
+    "物流管理": {
+      "paths": 3, "reach": 3, "correct": 3, "recover": 3,
+      "resource_sensitivity": "high",
+      "ai_impact": "disrupted",
+      "rationale": {
+        "baseline": "物流行业岗位稳定但天花板有限，paths 与供应链管理重叠；correct 可转运营/项目管理。",
+        "resource": "家族物流/外贸资源直接对应行业入口（仓储/货代/船代）。",
+        "ai_impact": "AI 优化调度/路径规划/库存预测，初级岗位明显被替代。"
+      }
+    },
+    "电子商务": {
+      "paths": 3, "reach": 3, "correct": 4, "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "disrupted",
+      "rationale": {
+        "baseline": "与市场营销/数字化运营重合度高，paths 中等；行业变化快，correct 较强（可转新媒体/运营）。",
+        "resource": "家庭电商/网红资源有帮助但行业相对开放。",
+        "ai_impact": "AI 自动化运营/客服/广告投放是核心冲击点。"
+      }
+    },
+    "供应链管理": {
+      "paths": 3, "reach": 3, "correct": 3, "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "disrupted",
+      "rationale": {
+        "baseline": "制造业和零售业核心职能，但岗位主要在大企业；本科直接就业 reach 中等。",
+        "resource": "大企业供应链岗位有一定推荐通道但仍以技能/资格为主。",
+        "ai_impact": "AI 预测/优化模型直接覆盖该专业核心工具栈——SCM 软件正在被 AI 重写。"
+      }
+    },
+    "会计学": {
+      "paths": 4, "reach": 4, "correct": 4, "recover": 4,
+      "resource_sensitivity": "default",
+      "ai_impact": "disrupted",
+      "rationale": {
+        "baseline": "刚需职能，paths 宽（所有行业都需要），CPA 资格化路径明确；普通财务岗天花板低，但 correct 强（可转审计/财管/税务）。",
+        "resource": "资格化路径稀释了资源依赖——CPA/CFA 证书是硬通货。",
+        "ai_impact": "AI 自动化记账/对账/合规检查是直接冲击点，但审计/财管/税务仍需人——中级以上岗位仍有空间。"
+      }
+    },
+    "汉语言文学": {
+      "paths": 3, "reach": 3, "correct": 3, "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "threatened",
+      "rationale": {
+        "baseline": "原文「不算高光专业，但前期积累不至于一次性作废，走偏后不像法学那么难回头」。paths 中等（教师/编辑/公务员/文案），correct 较强但需主动叠加技能。",
+        "resource": "教师编制/出版/媒体有一定关系敏感度但相对开放。",
+        "ai_impact": "AI 文本生成对文案/编辑/初级写作冲击大；教师/公务员路径仍稳定，但需要走出本专业核心。"
+      }
+    },
+    "英语/外语": {
+      "paths": 3, "reach": 3, "correct": 4, "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "threatened",
+      "rationale": {
+        "baseline": "原文「中等宽度，依赖主动拓展」。case A 被抬入低难、case B 掉入高难——典型的「个人系数敏感型」专业。",
+        "resource": "外教/翻译公司有一定家庭关系敏感度但行业开放度较高。",
+        "ai_impact": "LLM 翻译已接近 NMT 水平，中传 2025 已撤翻译专业。除非叠加垂直领域（法律/医学翻译）或文化深度（同声传译），本专业核心受 AI 严重冲击。"
+      }
+    },
+    "新闻传播 / 传播学": {
+      "paths": 3, "reach": 3, "correct": 3, "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "threatened",
+      "rationale": {
+        "baseline": "传统媒体收缩、新媒体兴起，paths 仍中等（公关/内容/品牌/政府宣传），但 reach 受平台限制。",
+        "resource": "媒体行业人脉对实习和入职帮助明显但天花板受行业限制。",
+        "ai_impact": "AI 自动化采编/写稿/内容审核成为常态。深度调查/品牌策略仍需人，但初级新闻岗结构性收缩。"
+      }
+    },
+    "教育学": {
+      "paths": 3, "reach": 4, "correct": 3, "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "rationale": {
+        "baseline": "教师/教研/教培方向稳定，paths 中等；近年教培行业收缩使 paths 略窄，correct 受教师编制路径限制。",
+        "resource": "教师编制系统人脉有帮助但考编仍以硬指标为主。",
+        "ai_impact": "强人际+情感专业，AI 辅助教学但替代有限——教学本质是关系建立。"
+      }
+    },
+    "心理学": {
+      "paths": 3, "reach": 2, "correct": 3, "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "rationale": {
+        "baseline": "应用方向多但本科直接就业弱，需深造（临床/咨询/教育）；本科 paths 实质偏窄。",
+        "resource": "咨询师/HR 圈子人脉有帮助但仍需资格。",
+        "ai_impact": "强人际+情感，AI 替代有限——治疗关系无法被 AI 替代，但 AI 辅助筛查已普及。"
+      }
+    },
+    "社会工作": {
+      "paths": 2, "reach": 2, "correct": 3, "recover": 2,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "rationale": {
+        "baseline": "长期红牌专业，岗位需求与待遇都偏弱；correct 可转公务员/NGO 但路径不稳定。",
+        "resource": "政府/NGO 系统人脉对编制和项目岗位有帮助但天花板低。",
+        "ai_impact": "强人际，AI 影响有限——社工本质是关系建立和资源协调。"
+      }
+    },
+    "法学": {
+      "paths": 2, "reach": 2, "correct": 1, "recover": 2,
+      "resource_sensitivity": "high",
+      "ai_impact": "threatened",
+      "rationale": {
+        "baseline": "原文标杆（仅限纯法律职业路径）。高锁定、纠偏能力极弱，一旦发现不适合调整空间小；若叠加商科/金融/考试路径分数可显著提升（本算法不自动叠加）。",
+        "resource": "家族司法/政法背景对红圈所、检察院、法院系统准入有显著影响——是法学行业「圈子敏感」的典型。",
+        "ai_impact": "Anthropic：法律类理论暴露 89%。AI 文书生成/合规检索/案例分析已成熟，普通学生进入路径被显著挤压；红圈所/法官位置仍需人但高度筛选。"
+      }
+    },
+    "建筑学": {
+      "paths": 2, "reach": 3, "correct": 2, "recover": 2,
+      "resource_sensitivity": "high",
+      "ai_impact": "neutral",
+      "rationale": {
+        "baseline": "房地产周期下行，传统建筑设计岗位需求收缩；五年制+注册建筑师壁垒高，纠偏路径受限。",
+        "resource": "家族设计院/工作室资源加成显著——师徒制+项目机会传承明显。",
+        "ai_impact": "AI 辅助设计但创意/施工监理仍需人，行业低迷主因是周期非 AI。"
+      }
+    },
+    "艺术类（美术/音乐/表演）": {
+      "paths": 2, "reach": 1, "correct": 2, "recover": 1,
+      "resource_sensitivity": "decisive",
+      "ai_impact": "threatened",
+      "rationale": {
+        "baseline": "原文红牌专业典型。少数人发展很好，多数人难稳定实现目标；沉没成本（艺考投入）+ 单一路径双重锁定。",
+        "resource": "圈子/老师推荐/家境对成败近乎决定性——艺考成本极高，演出机会靠人脉，画廊接洽靠圈子。",
+        "ai_impact": "AI 生图/音乐/表演直接冲击商业市场（插画/配乐/广告片）；纯艺术创作仍需人但商业养活路径几乎全军覆没。"
+      }
+    },
+    "设计类（视觉传达/产品设计等）": {
+      "paths": 3, "reach": 3, "correct": 3, "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "disrupted",
+      "rationale": {
+        "baseline": "比纯艺术 paths 宽（UI/UX/品牌/工业设计），但门槛与平台依赖大；correct 中等（可转产品/运营）。",
+        "resource": "作品集硬实力为主，资源加分有限——比艺术类开放度高得多。",
+        "ai_impact": "AI 工具加持 UI/UX 设计师效率，但视觉传达/平面设计的商业岗位被显著替代。中传 2025 撤视觉传达是实证。"
+      }
+    },
+    "哲学": {
+      "paths": 2, "reach": 2, "correct": 3, "recover": 2,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "rationale": {
+        "baseline": "学术导向强，paths 极窄；本科直接就业极弱，主要靠跨方向考研/考公；correct 受学科基础限制。",
+        "resource": "学术圈人脉对深造和教职有帮助但岗位稀少。",
+        "ai_impact": "AI 影响有限——哲学训练的批判思辨反而是 AI 时代稀缺技能，但岗位稀缺。"
+      }
+    }
+  },
+  "_aliases": {
+    "_doc": "Name resolution map: user-typed name -> canonical key in majors/_user_additions. Checked before main lookup. Single-hop only (no chained aliases).",
+    "数据科学/人工智能": "数据科学 / 人工智能",
+    "数据科学/AI": "数据科学 / 人工智能",
+    "数据科学": "数据科学 / 人工智能",
+    "人工智能": "数据科学 / 人工智能",
+    "AI": "数据科学 / 人工智能",
+    "计算机": "计算机类 / 软件工程",
+    "计算机类": "计算机类 / 软件工程",
+    "计算机类/软件工程": "计算机类 / 软件工程",
+    "软件工程": "计算机类 / 软件工程",
+    "信息安全": "信息安全 / 网络工程",
+    "网络工程": "信息安全 / 网络工程",
+    "信息安全/网络工程": "信息安全 / 网络工程",
+    "新闻传播": "新闻传播 / 传播学",
+    "传播学": "新闻传播 / 传播学",
+    "新闻传播/传播学": "新闻传播 / 传播学",
+    "国际经济与贸易": "国际商务",
+    "国贸": "国际商务",
+    "英语": "英语/外语",
+    "外语": "英语/外语",
+    "设计学": "设计类（视觉传达/产品设计等）",
+    "设计类": "设计类（视觉传达/产品设计等）",
+    "艺术类": "艺术类（美术/音乐/表演）",
+    "美术": "艺术类（美术/音乐/表演）",
+    "音乐": "艺术类（美术/音乐/表演）",
+    "表演": "艺术类（美术/音乐/表演）",
+    "艺术": "艺术类（美术/音乐/表演）",
+    "集成电路": "微电子"
+  },
+  "_user_additions": {
+    "微电子": {
+      "paths": 4, "reach": 4, "correct": 3, "recover": 4,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "_source": "origin-article-anchor",
+      "_date": "2026-05-18",
+      "_confidence": "high",
+      "rationale": {
+        "baseline": "原文锚点：与电气工程同级 4×4×3×4=192（电气工程 / 微电子 / 机械电子）。芯片设计/制造/封测路径清晰；本科直接就业偏窄，硕士起步是主流。correct=3 因转方向需补 CS/电子知识。",
+        "resource": "实习/内推对入行有帮助，但芯片行业整体仍是硬技能/学历驱动，资源加成中等。",
+        "ai_impact": "AI 辅助 EDA 提效但不重构职业路径；半导体周期性强于 AI 直接冲击。"
+      }
+    }
+  }
+}

@@ -1,0 +1,101 @@
+{
+  "_meta": {
+    "version": "2026.1",
+    "date": "2026-05-18",
+    "doc": "省份 → 高考模式映射 + 各模式科目集。2026 高考为本表基线；2027+ 会有调整（如新疆 2027 首考新高考、西藏 2027 首考新高考）。",
+    "source": "教育部高考改革进程公开资料 + 各省教育考试院"
+  },
+  "modes": {
+    "3+3": {
+      "label": "3+3 模式",
+      "required": ["语文", "数学", "外语"],
+      "elective_pool": ["物理", "化学", "生物", "政治", "历史", "地理"],
+      "elective_count": 3,
+      "primary": null,
+      "scoring": "选考为等级赋分（100 分制）",
+      "max_total": 750
+    },
+    "3+3_zhejiang": {
+      "label": "3+3 模式（浙江变体）",
+      "required": ["语文", "数学", "外语"],
+      "elective_pool": ["物理", "化学", "生物", "政治", "历史", "地理", "技术"],
+      "elective_count": 3,
+      "primary": null,
+      "scoring": "选考为等级赋分（100 分制）；技术 = 信息技术 + 通用技术",
+      "max_total": 750
+    },
+    "3+3_shanghai": {
+      "label": "3+3 模式（上海变体）",
+      "required": ["语文", "数学", "外语"],
+      "elective_pool": ["物理", "化学", "生物", "政治", "历史", "地理"],
+      "elective_count": 3,
+      "primary": null,
+      "scoring": "选考 5 等 11 级赋分（70 分制）；外语含听说一年两考",
+      "max_total": 660
+    },
+    "3+1+2": {
+      "label": "3+1+2 模式",
+      "required": ["语文", "数学", "外语"],
+      "primary_pool": ["物理", "历史"],
+      "primary_count": 1,
+      "reselect_pool": ["化学", "生物", "政治", "地理"],
+      "reselect_count": 2,
+      "scoring": "首选按原始分计；再选按等级赋分计",
+      "max_total": 750
+    },
+    "traditional": {
+      "label": "传统文理分科（旧高考）",
+      "required": ["语文", "数学", "外语"],
+      "tracks": {
+        "理": {"combined_subject": "理综", "covers": ["物理", "化学", "生物"], "combined_max": 300},
+        "文": {"combined_subject": "文综", "covers": ["政治", "历史", "地理"], "combined_max": 300}
+      },
+      "scoring": "理综/文综合卷 300 分；数学分文理（不同试题）",
+      "max_total": 750
+    }
+  },
+  "provinces": {
+    "北京":   {"mode": "3+3", "first_year": 2017},
+    "天津":   {"mode": "3+3", "first_year": 2017},
+    "上海":   {"mode": "3+3_shanghai", "first_year": 2014},
+    "浙江":   {"mode": "3+3_zhejiang", "first_year": 2014},
+    "山东":   {"mode": "3+3", "first_year": 2017},
+    "海南":   {"mode": "3+3", "first_year": 2017, "score_note": "标准分满分 900"},
+    "河北":   {"mode": "3+1+2", "first_year": 2018},
+    "辽宁":   {"mode": "3+1+2", "first_year": 2018},
+    "江苏":   {"mode": "3+1+2", "first_year": 2018},
+    "福建":   {"mode": "3+1+2", "first_year": 2018},
+    "湖北":   {"mode": "3+1+2", "first_year": 2018},
+    "湖南":   {"mode": "3+1+2", "first_year": 2018},
+    "广东":   {"mode": "3+1+2", "first_year": 2018},
+    "重庆":   {"mode": "3+1+2", "first_year": 2018},
+    "黑龙江": {"mode": "3+1+2", "first_year": 2021},
+    "吉林":   {"mode": "3+1+2", "first_year": 2021},
+    "安徽":   {"mode": "3+1+2", "first_year": 2021},
+    "江西":   {"mode": "3+1+2", "first_year": 2021},
+    "贵州":   {"mode": "3+1+2", "first_year": 2021},
+    "广西":   {"mode": "3+1+2", "first_year": 2021},
+    "甘肃":   {"mode": "3+1+2", "first_year": 2024},
+    "山西":   {"mode": "3+1+2", "first_year": 2024},
+    "内蒙古": {"mode": "3+1+2", "first_year": 2024},
+    "河南":   {"mode": "3+1+2", "first_year": 2024},
+    "四川":   {"mode": "3+1+2", "first_year": 2024},
+    "云南":   {"mode": "3+1+2", "first_year": 2024},
+    "陕西":   {"mode": "3+1+2", "first_year": 2024},
+    "青海":   {"mode": "3+1+2", "first_year": 2024},
+    "宁夏":   {"mode": "3+1+2", "first_year": 2024},
+    "新疆":   {"mode": "traditional", "transition": "2027 首考新高考（3+1+2）"},
+    "西藏":   {"mode": "traditional", "transition": "2027 首考新高考"}
+  },
+  "subject_aliases": {
+    "_doc": "用户输入的科目名 → 标准名映射。归一化时全部 lowercase 后查",
+    "思想政治": "政治",
+    "道德与法治": "政治",
+    "生物学": "生物",
+    "信息技术": "技术",
+    "通用技术": "技术",
+    "信技": "技术",
+    "英": "外语",
+    "english": "外语"
+  }
+}

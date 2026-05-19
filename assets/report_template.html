@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gaokao-ADI 个性化测评 · {{generated_at}}</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+         max-width: 980px; margin: 32px auto; padding: 0 24px;
+         color: #1a1a1a; line-height: 1.65; background: #fafafa; }
+  h1 { font-size: 28px; border-bottom: 2px solid #2d6cdf; padding-bottom: 8px; margin-bottom: 4px; }
+  h2 { font-size: 20px; margin-top: 36px; color: #2d6cdf; }
+  h3 { font-size: 16px; margin-top: 24px; }
+  h4 { margin: 0 0 8px; font-size: 14px; text-align: center; color: #555; }
+  .meta { color: #888; font-size: 12px; }
+  .chip { display: inline-block; padding: 4px 10px; margin: 0 6px 6px 0;
+          background: #f0f4ff; border-radius: 12px; font-size: 13px; }
+  .chip strong { color: #2d6cdf; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 14px; }
+  th, td { padding: 8px 12px; border-bottom: 1px solid #eee; text-align: left; }
+  th { background: #f5f7fa; }
+  .warn { background: #fff8e1; padding: 12px 16px; border-left: 4px solid #ff9800;
+          border-radius: 4px; margin: 16px 0; }
+  .info { background: #e8f4fd; padding: 8px 14px; border-left: 4px solid #2d6cdf;
+          border-radius: 4px; margin: 12px 0; font-size: 13px; }
+  .grade-低难 { color: #2da45e; font-weight: 600; }
+  .grade-中等 { color: #d9b13a; font-weight: 600; }
+  .grade-较难 { color: #e07a3a; font-weight: 600; }
+  .grade-高难 { color: #c43c4d; font-weight: 600; }
+  .card { background: white; border: 1px solid #e8e8e8; border-radius: 8px;
+          padding: 16px 20px; margin: 14px 0; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+  .lift { color: #2da45e; }
+  .drag { color: #c43c4d; }
+  .impact-block, .match-block, .summary-block {
+      background: #fafbfc; border-left: 3px solid #2d6cdf;
+      padding: 10px 14px; margin: 12px 0; border-radius: 4px; font-size: 13.5px; }
+  .impact-block strong, .match-block strong, .summary-block strong {
+      color: #2d6cdf; display: block; margin-bottom: 6px; }
+  .impact-block ul { margin: 0; }
+  .match-block table { margin: 6px 0; font-size: 13px; }
+  .summary-block p { margin: 4px 0 0; }
+  .extra-card { border-left: 4px solid #2d6cdf; }
+  canvas { max-width: 100%; }
+  .radar-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+  .radar-cell { background: white; border: 1px solid #e8e8e8; border-radius: 8px; padding: 12px; }
+  ul { padding-left: 22px; }
+  li { margin-bottom: 6px; }
+  hr { border: none; border-top: 1px solid #ddd; margin: 32px 0 16px; }
+  .arrow { color: #999; }
+  .same { color: #2da45e; }
+  .swap { color: #e07a3a; }
+</style>
+</head>
+<body>
+  <h1>Gaokao-ADI 个性化测评</h1>
+  <div class="meta">生成时间：{{generated_at}}</div>
+
+  {{confidence_warning}}
+
+  <h2>概览</h2>
+  <div>{{overview_chips}}</div>
+
+  <h2>主观偏好 vs 客观可走通</h2>
+  {{subjective_table}}
+  <p>一致度 Kendall τ = <strong>{{tau_value}}</strong> — {{tau_interpretation}}</p>
+
+  <h2>三专业评分</h2>
+  {{score_table}}
+  <div class="card"><canvas id="bar-chart" height="80"></canvas></div>
+
+  <h2>4 维度雷达对比</h2>
+  <div class="radar-grid">{{radar_cells}}</div>
+
+  <h2>逐专业分析</h2>
+  {{major_cards}}
+
+  <h2>综合建议</h2>
+  <ul>{{advice_list}}</ul>
+
+  {{extras_section}}
+
+  <hr>
+  <p class="meta">基于风灵之声「专业路径 ADI」模型的工程化复刻 · 与作者私有算法可能存在量纲差异，结论以分档为准</p>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const RADAR_DATA = {{radar_data_json}};
+const BAR_DATA = {{bar_data_json}};
+
+window.addEventListener('load', () => {
+  if (typeof Chart === 'undefined') {
+    document.querySelectorAll('canvas').forEach(c => {
+      c.outerHTML = '<div class="info">Chart.js 加载失败；详细数据请看上方表格。</div>';
+    });
+    return;
+  }
+  new Chart(document.getElementById('bar-chart'), {
+    type: 'bar',
+    data: BAR_DATA,
+    options: { indexAxis: 'y',
+               plugins: { legend: { display: false } },
+               scales: { x: { suggestedMax: 625, beginAtZero: true } } }
+  });
+  RADAR_DATA.forEach((entry, i) => {
+    const el = document.getElementById('radar-' + i);
+    if (!el) return;
+    new Chart(el, {
+      type: 'radar',
+      data: entry.data,
+      options: { plugins: { legend: { display: false } },
+                 scales: { r: { suggestedMin: 0, suggestedMax: 5, ticks: { stepSize: 1 } } } }
+    });
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,981 @@
+{
+  "_meta": {
+    "version": "2024.1",
+    "applicable_year": "2027+ (2026 届适用度高，但 CS 类的物化要求严格度可能弱一档)",
+    "source": "教育部 2024 版《普通高校本科招生专业选考科目要求指引》+ 主流院校经验数据",
+    "schema_doc": {
+      "required_primary": "3+1+2 首选要求 ('物理'|'历史'|null)；3+3 模式忽略此字段",
+      "required_electives_all": "必须全部选考的科目列表（再选/3+3 通用）",
+      "required_electives_any": "满足任一组即可的科目组合列表（罕见）",
+      "traditional_track": "传统模式文/理 ('理'|'文'|'both')",
+      "key_subjects": "学科 -> FitScore 权重（0-1），求和应 ≈ 1.0",
+      "soft_thresholds": "百分制（满分 100）下劣势学科阈值",
+      "tags": "用户偏好匹配标签",
+      "confidence": "high/medium/low，反映选科要求的把握度"
+    },
+    "key_subjects_doc": "权重是 v1 经验估计；上线后应用真实数据调优。CS 类示例：数学 0.30 + 物理 0.20 + 外语 0.15 + 语文 0.10 + 化学 0.20 + 信息 0.05 = 1.00。文科类示例：语文 0.40 + 历史 0.20 + 外语 0.20 + 政治 0.10 + 数学 0.10 = 1.00。"
+  },
+  "majors": {
+    "数学": {
+      "required_primary": "物理",
+      "required_electives_all": [],
+      "required_electives_any": [],
+      "traditional_track": "理",
+      "key_subjects": {
+        "数学": 0.45,
+        "物理": 0.3,
+        "外语": 0.15,
+        "语文": 0.1
+      },
+      "soft_thresholds": {
+        "数学": 130,
+        "物理": 70
+      },
+      "tags": [
+        "数理逻辑",
+        "抽象思维",
+        "基础科学"
+      ],
+      "confidence": "high"
+    },
+    "物理": {
+      "required_primary": "物理",
+      "required_electives_all": [
+        "化学"
+      ],
+      "required_electives_any": [],
+      "traditional_track": "理",
+      "key_subjects": {
+        "物理": 0.45,
+        "数学": 0.35,
+        "外语": 0.15,
+        "语文": 0.05
+      },
+      "soft_thresholds": {
+        "物理": 85,
+        "数学": 90
+      },
+      "tags": [
+        "实验科学",
+        "数理逻辑",
+        "基础科学"
+      ],
+      "confidence": "high"
+    },
+    "化学": {
+      "required_primary": "物理",
+      "required_electives_all": [
+        "化学"
+      ],
+      "required_electives_any": [],
+      "traditional_track": "理",
+      "key_subjects": {
+        "化学": 0.4,
+        "数学": 0.2,
+        "物理": 0.2,
+        "外语": 0.1,
+        "语文": 0.05,
+        "生物": 0.05
+      },
+      "soft_thresholds": {
+        "化学": 85,
+        "数学": 80,
+        "物理": 70
+      },
+      "tags": [
+        "实验科学",
+        "基础科学"
+      ],
+      "confidence": "high"
+    },
+    "生物科学": {
+      "required_primary": "物理",
+      "required_electives_all": [
+        "化学",
+        "生物"
+      ],
+      "required_electives_any": [],
+      "traditional_track": "理",
+      "key_subjects": {
+        "生物": 0.35,
+        "化学": 0.25,
+        "数学": 0.15,
+        "物理": 0.1,
+        "外语": 0.1,
+        "语文": 0.05
+      },
+      "soft_thresholds": {
+        "生物": 80,
+        "化学": 80
+      },
+      "tags": [
+        "实验科学",
+        "基础科学",
+        "医学相关"
+      ],
+      "confidence": "high"
+    },
+    "统计学": {
+      "required_primary": "物理",
+      "required_electives_all": [],
+      "required_electives_any": [],
+      "traditional_track": "理",
+      "key_subjects": {
+        "数学": 0.5,
+        "物理": 0.2,
+        "外语": 0.15,
+        "语文": 0.15
+      },
+      "soft_thresholds": {
+        "数学": 120
+      },
+      "tags": [
+        "数理逻辑",
+        "数据分析",
+        "实证科学"
+      ],
+      "confidence": "high"
+    },
+    "应用数学": {
+      "required_primary": "物理",
+      "required_electives_all": [],
+      "required_electives_any": [],
+      "traditional_track": "理",
+      "key_subjects": {
+        "数学": 0.5,
+        "物理": 0.25,
+        "外语": 0.15,
+        "语文": 0.1
+      },
+      "soft_thresholds": {
+        "数学": 125,
+        "物理": 70
+      },
+      "tags": [
+        "数理逻辑",
+        "数据分析",
+        "工程应用"
+      ],
+      "confidence": "high"
+    },
+    "数据科学 / 人工智能": {
+      "required_primary": "物理",
+      "required_electives_all": [
+        "化学"
+      ],
+      "required_electives_any": [],
+      "traditional_track": "理",
+      "key_subjects": {
+        "数学": 0.45,
+        "物理": 0.25,
+        "外语": 0.15,
+        "语文": 0.15
+      },
+      "soft_thresholds": {
+        "数学": 115,
+        "外语": 100,
+        "物理": 70
+      },
+      "tags": [
+        "数理逻辑",
+        "技术",
+        "创造性",
+        "数据分析"
+      ],
+      "confidence": "high"
+    },
+    "计算机类 / 软件工程": {
+      "required_primary": "物理",
+      "required_electives_all": [
+        "化学"
+      ],
+      "required_electives_any": [],
+      "traditional_track": "理",
+      "key_subjects": {
+        "数学": 0.4,
+        "物理": 0.3,
+        "外语": 0.15,
+        "语文": 0.15
+      },
+      "soft_thresholds": {
+        "数学": 110,
+        "物理": 65
+      },
+      "tags": [
+        "数理逻辑",
+        "技术",
+        "创造性"
+      ],
+      "confidence": "high",
+      "note": "2024 版起多数 985/211 校强制 P+C（含大学物理+电路）"
+    },
+    "信息安全 / 网络工程": {
+      "required_primary": "物理",
+      "required_electives_all": [
+        "化学"
+      ],
+      "required_electives_any": [],
+      "traditional_track": "理",
+      "key_subjects": {
+        "数学": 0.4,
+        "物理": 0.3,
+        "外语": 0.15,
+        "语文": 0.15
+      },
+      "soft_thresholds": {
+        "数学": 110,
+        "物理": 65
+      },
+      "tags": [
+        "数理逻辑",
+        "技术"
+      ],
+      "confidence": "high"
+    },
+    "电子信息工程": {
+      "required_primary": "物理",
+      "required_electives_all": [
+        "化学"
+      ],
+      "required_electives_any": [],
+      "traditional_track": "理",
+      "key_subjects": {
+        "物理": 0.35,
+        "数学": 0.35,
+        "外语": 0.15,
+        "语文": 0.15
+      },
+      "soft_thresholds": {
+        "物理": 80,
+        "数学": 90
+      },
+      "tags": [
+        "数理逻辑",
+        "技术",
+        "工程应用"
+      ],
+      "confidence": "high"
+    },
+    "自动化": {
+      "required_primary": "物理",
+      "required_electives_all": [
+        "化学"
+      ],
+      "required_electives_any": [],
+      "traditional_track": "理",
+      "key_subjects": {
+        "物理": 0.35,
+        "数学": 0.35,
+        "外语": 0.15,
+        "语文": 0.15
+      },
+      "soft_thresholds": {
+        "物理": 80,
+        "数学": 90
+      },
+      "tags": [
+        "技术",
+        "工程应用",
+        "机器人"
+      ],
+      "confidence": "high"
+    },
+    "电气工程": {
+      "required_primary": "物理",
+      "required_electives_all": [
+        "化学"
+      ],
+      "required_electives_any": [],
+      "traditional_track": "理",
+      "key_subjects": {
+        "物理": 0.4,
+        "数学": 0.3,
+        "外语": 0.15,
+        "语文": 0.15
+      },
+      "soft_thresholds": {
+        "物理": 85,
+        "数学": 90
+      },
+      "tags": [
+        "技术",
+        "工程应用",
+        "实体行业"
+      ],
+      "confidence": "high"
+    },
+    "机械工程": {
+      "required_primary": "物理",
+      "required_electives_all": [
+        "化学"
+      ],
+      "required_electives_any": [],
+      "traditional_track": "理",
+      "key_subjects": {
+        "物理": 0.4,
+        "数学": 0.3,
+        "外语": 0.15,
+        "语文": 0.15
+      },
+      "soft_thresholds": {
+        "物理": 85,
+        "数学": 85
+      },
+      "tags": [
+        "技术",
+        "工程应用",
+        "实体行业"
+      ],
+      "confidence": "high"
+    },
+    "土木工程": {
+      "required_primary": "物理",
+      "required_electives_all": [
+        "化学"
+      ],
+      "required_electives_any": [],
+      "traditional_track": "理",
+      "key_subjects": {
+        "物理": 0.35,
+        "数学": 0.3,
+        "外语": 0.15,
+        "语文": 0.15,
+        "化学": 0.05
+      },
+      "soft_thresholds": {
+        "物理": 80,
+        "数学": 80
+      },
+      "tags": [
+        "技术",
+        "工程应用",
+        "实体行业"
+      ],
+      "confidence": "high"
+    },
+    "环境工程": {
+      "required_primary": "物理",
+      "required_electives_all": [
+        "化学"
+      ],
+      "required_electives_any": [],
+      "traditional_track": "理",
+      "key_subjects": {
+        "化学": 0.3,
+        "物理": 0.2,
+        "数学": 0.2,
+        "生物": 0.1,
+        "外语": 0.1,
+        "语文": 0.1
+      },
+      "soft_thresholds": {
+        "化学": 75,
+        "物理": 65
+      },
+      "tags": [
+        "实验科学",
+        "工程应用",
+        "可持续"
+      ],
+      "confidence": "high"
+    },
+    "临床医学": {
+      "required_primary": "物理",
+      "required_electives_all": [
+        "化学",
+        "生物"
+      ],
+      "required_electives_any": [],
+      "traditional_track": "理",
+      "key_subjects": {
+        "化学": 0.25,
+        "生物": 0.25,
+        "数学": 0.15,
+        "物理": 0.1,
+        "外语": 0.15,
+        "语文": 0.1
+      },
+      "soft_thresholds": {
+        "化学": 80,
+        "生物": 80,
+        "外语": 100
+      },
+      "tags": [
+        "实验科学",
+        "社会服务",
+        "医学相关",
+        "高强度训练"
+      ],
+      "confidence": "high",
+      "note": "顶校（协和/北医）强制 P+C+B"
+    },
+    "口腔医学": {
+      "required_primary": "物理",
+      "required_electives_all": [
+        "化学",
+        "生物"
+      ],
+      "required_electives_any": [],
+      "traditional_track": "理",
+      "key_subjects": {
+        "化学": 0.25,
+        "生物": 0.25,
+        "数学": 0.15,
+        "物理": 0.1,
+        "外语": 0.15,
+        "语文": 0.1
+      },
+      "soft_thresholds": {
+        "化学": 80,
+        "生物": 80
+      },
+      "tags": [
+        "实验科学",
+        "社会服务",
+        "医学相关",
+        "动手能力"
+      ],
+      "confidence": "high"
+    },
+    "药学": {
+      "required_primary": "物理",
+      "required_electives_all": [
+        "化学"
+      ],
+      "required_electives_any": [],
+      "traditional_track": "理",
+      "key_subjects": {
+        "化学": 0.35,
+        "生物": 0.2,
+        "数学": 0.15,
+        "物理": 0.1,
+        "外语": 0.1,
+        "语文": 0.1
+      },
+      "soft_thresholds": {
+        "化学": 75,
+        "生物": 70
+      },
+      "tags": [
+        "实验科学",
+        "医学相关"
+      ],
+      "confidence": "high"
+    },
+    "护理学": {
+      "required_primary": "物理",
+      "required_electives_all": [
+        "化学"
+      ],
+      "required_electives_any": [],
+      "traditional_track": "理",
+      "key_subjects": {
+        "生物": 0.2,
+        "化学": 0.2,
+        "语文": 0.2,
+        "数学": 0.15,
+        "外语": 0.2,
+        "物理": 0.05
+      },
+      "soft_thresholds": {
+        "生物": 65,
+        "化学": 65
+      },
+      "tags": [
+        "社会服务",
+        "医学相关",
+        "人际接触"
+      ],
+      "confidence": "high"
+    },
+    "经济学": {
+      "required_primary": null,
+      "required_electives_all": [],
+      "required_electives_any": [],
+      "traditional_track": "both",
+      "key_subjects": {
+        "数学": 0.35,
+        "语文": 0.2,
+        "外语": 0.2,
+        "历史": 0.15,
+        "物理": 0.1
+      },
+      "soft_thresholds": {
+        "数学": 105,
+        "外语": 100
+      },
+      "tags": [
+        "数理逻辑",
+        "商业",
+        "社会科学"
+      ],
+      "confidence": "medium",
+      "note": "顶校如复旦经济常要 P"
+    },
+    "金融学": {
+      "required_primary": null,
+      "required_electives_all": [],
+      "required_electives_any": [],
+      "traditional_track": "both",
+      "key_subjects": {
+        "数学": 0.35,
+        "外语": 0.3,
+        "语文": 0.15,
+        "物理": 0.1,
+        "历史": 0.1
+      },
+      "soft_thresholds": {
+        "数学": 115,
+        "外语": 105
+      },
+      "tags": [
+        "数理逻辑",
+        "商业",
+        "高强度训练"
+      ],
+      "confidence": "medium"
+    },
+    "工商管理": {
+      "required_primary": null,
+      "required_electives_all": [],
+      "required_electives_any": [],
+      "traditional_track": "both",
+      "key_subjects": {
+        "语文": 0.3,
+        "数学": 0.3,
+        "外语": 0.25,
+        "历史": 0.15
+      },
+      "soft_thresholds": {
+        "语文": 95,
+        "外语": 90
+      },
+      "tags": [
+        "商业",
+        "管理",
+        "通用技能"
+      ],
+      "confidence": "high"
+    },
+    "市场营销": {
+      "required_primary": null,
+      "required_electives_all": [],
+      "required_electives_any": [],
+      "traditional_track": "both",
+      "key_subjects": {
+        "语文": 0.3,
+        "外语": 0.3,
+        "数学": 0.25,
+        "历史": 0.15
+      },
+      "soft_thresholds": {
+        "语文": 90,
+        "外语": 85
+      },
+      "tags": [
+        "商业",
+        "创造性",
+        "人际接触"
+      ],
+      "confidence": "high"
+    },
+    "国际商务": {
+      "required_primary": null,
+      "required_electives_all": [],
+      "required_electives_any": [],
+      "traditional_track": "both",
+      "key_subjects": {
+        "外语": 0.45,
+        "语文": 0.25,
+        "数学": 0.2,
+        "历史": 0.1
+      },
+      "soft_thresholds": {
+        "外语": 110
+      },
+      "tags": [
+        "商业",
+        "语言",
+        "国际化"
+      ],
+      "confidence": "high"
+    },
+    "物流管理": {
+      "required_primary": null,
+      "required_electives_all": [],
+      "required_electives_any": [],
+      "traditional_track": "both",
+      "key_subjects": {
+        "数学": 0.35,
+        "外语": 0.25,
+        "语文": 0.2,
+        "地理": 0.15,
+        "物理": 0.05
+      },
+      "soft_thresholds": {
+        "数学": 90
+      },
+      "tags": [
+        "商业",
+        "数据分析",
+        "运营"
+      ],
+      "confidence": "high"
+    },
+    "电子商务": {
+      "required_primary": null,
+      "required_electives_all": [],
+      "required_electives_any": [],
+      "traditional_track": "both",
+      "key_subjects": {
+        "数学": 0.3,
+        "外语": 0.3,
+        "语文": 0.25,
+        "历史": 0.15
+      },
+      "soft_thresholds": {
+        "数学": 90,
+        "外语": 90
+      },
+      "tags": [
+        "商业",
+        "技术",
+        "创造性"
+      ],
+      "confidence": "high"
+    },
+    "供应链管理": {
+      "required_primary": null,
+      "required_electives_all": [],
+      "required_electives_any": [],
+      "traditional_track": "both",
+      "key_subjects": {
+        "数学": 0.35,
+        "外语": 0.25,
+        "语文": 0.2,
+        "地理": 0.15,
+        "物理": 0.05
+      },
+      "soft_thresholds": {
+        "数学": 90
+      },
+      "tags": [
+        "商业",
+        "运营",
+        "数据分析"
+      ],
+      "confidence": "high"
+    },
+    "会计学": {
+      "required_primary": null,
+      "required_electives_all": [],
+      "required_electives_any": [],
+      "traditional_track": "both",
+      "key_subjects": {
+        "数学": 0.4,
+        "外语": 0.3,
+        "语文": 0.25,
+        "历史": 0.05
+      },
+      "soft_thresholds": {
+        "数学": 95,
+        "外语": 90
+      },
+      "tags": [
+        "商业",
+        "数理逻辑",
+        "标准化职能"
+      ],
+      "confidence": "high"
+    },
+    "汉语言文学": {
+      "required_primary": null,
+      "required_electives_all": [],
+      "required_electives_any": [],
+      "traditional_track": "文",
+      "key_subjects": {
+        "语文": 0.5,
+        "历史": 0.25,
+        "外语": 0.15,
+        "数学": 0.1
+      },
+      "soft_thresholds": {
+        "语文": 110,
+        "历史": 75
+      },
+      "tags": [
+        "人文",
+        "语言",
+        "教育相关"
+      ],
+      "confidence": "high"
+    },
+    "英语/外语": {
+      "required_primary": null,
+      "required_electives_all": [],
+      "required_electives_any": [],
+      "traditional_track": "both",
+      "key_subjects": {
+        "外语": 0.55,
+        "语文": 0.25,
+        "数学": 0.1,
+        "历史": 0.1
+      },
+      "soft_thresholds": {
+        "外语": 120,
+        "语文": 90
+      },
+      "tags": [
+        "语言",
+        "人文",
+        "国际化"
+      ],
+      "confidence": "high"
+    },
+    "新闻传播 / 传播学": {
+      "required_primary": null,
+      "required_electives_all": [],
+      "required_electives_any": [],
+      "traditional_track": "both",
+      "key_subjects": {
+        "语文": 0.45,
+        "外语": 0.25,
+        "历史": 0.15,
+        "数学": 0.1,
+        "政治": 0.05
+      },
+      "soft_thresholds": {
+        "语文": 100
+      },
+      "tags": [
+        "人文",
+        "创造性",
+        "社会观察"
+      ],
+      "confidence": "high"
+    },
+    "教育学": {
+      "required_primary": null,
+      "required_electives_all": [],
+      "required_electives_any": [],
+      "traditional_track": "both",
+      "key_subjects": {
+        "语文": 0.35,
+        "外语": 0.2,
+        "历史": 0.2,
+        "数学": 0.2,
+        "政治": 0.05
+      },
+      "soft_thresholds": {
+        "语文": 95
+      },
+      "tags": [
+        "社会服务",
+        "教育相关",
+        "人际接触"
+      ],
+      "confidence": "high",
+      "note": "学前/小教不限选科；某些方向（学科教学）需对应学科"
+    },
+    "心理学": {
+      "required_primary": "物理",
+      "required_electives_all": [],
+      "required_electives_any": [
+        [
+          "化学"
+        ],
+        [
+          "生物"
+        ]
+      ],
+      "traditional_track": "both",
+      "key_subjects": {
+        "语文": 0.3,
+        "生物": 0.3,
+        "数学": 0.15,
+        "外语": 0.15,
+        "化学": 0.05,
+        "物理": 0.05
+      },
+      "soft_thresholds": {
+        "数学": 80,
+        "生物": 70,
+        "语文": 95
+      },
+      "tags": [
+        "社会科学",
+        "实验科学",
+        "社会服务"
+      ],
+      "confidence": "medium",
+      "note": "理学心理学按理招（P+C/B）；师范类心理学多数不限"
+    },
+    "社会工作": {
+      "required_primary": null,
+      "required_electives_all": [],
+      "required_electives_any": [],
+      "traditional_track": "文",
+      "key_subjects": {
+        "语文": 0.35,
+        "外语": 0.2,
+        "历史": 0.2,
+        "数学": 0.2,
+        "政治": 0.05
+      },
+      "soft_thresholds": {
+        "语文": 90
+      },
+      "tags": [
+        "社会服务",
+        "人际接触",
+        "NGO"
+      ],
+      "confidence": "high"
+    },
+    "法学": {
+      "required_primary": null,
+      "required_electives_all": [],
+      "required_electives_any": [],
+      "traditional_track": "both",
+      "key_subjects": {
+        "语文": 0.4,
+        "外语": 0.25,
+        "历史": 0.2,
+        "政治": 0.05,
+        "数学": 0.1
+      },
+      "soft_thresholds": {
+        "语文": 105
+      },
+      "tags": [
+        "人文",
+        "思辨",
+        "社会规则"
+      ],
+      "confidence": "high",
+      "note": "公安学类 / 政治学类 / 马克思主义理论必选政治"
+    },
+    "建筑学": {
+      "required_primary": "物理",
+      "required_electives_all": [],
+      "required_electives_any": [],
+      "traditional_track": "理",
+      "key_subjects": {
+        "数学": 0.25,
+        "物理": 0.2,
+        "语文": 0.15,
+        "外语": 0.15,
+        "历史": 0.1,
+        "化学": 0.05,
+        "地理": 0.1
+      },
+      "soft_thresholds": {
+        "数学": 90,
+        "物理": 75
+      },
+      "tags": [
+        "创造性",
+        "工程应用",
+        "美学"
+      ],
+      "confidence": "high",
+      "note": "含美术加试"
+    },
+    "艺术类（美术/音乐/表演）": {
+      "required_primary": null,
+      "required_electives_all": [],
+      "required_electives_any": [],
+      "traditional_track": "both",
+      "key_subjects": {
+        "语文": 0.35,
+        "外语": 0.25,
+        "历史": 0.25,
+        "数学": 0.1,
+        "物理": 0.05
+      },
+      "soft_thresholds": {
+        "语文": 90
+      },
+      "tags": [
+        "创造性",
+        "美学",
+        "需校考"
+      ],
+      "confidence": "medium",
+      "note": "走独立录取批次；需省统考或校考；文化课分仅作过线"
+    },
+    "设计类（视觉传达/产品设计等）": {
+      "required_primary": null,
+      "required_electives_all": [],
+      "required_electives_any": [],
+      "traditional_track": "both",
+      "key_subjects": {
+        "语文": 0.3,
+        "外语": 0.3,
+        "历史": 0.2,
+        "物理": 0.15,
+        "数学": 0.05
+      },
+      "soft_thresholds": {
+        "语文": 90
+      },
+      "tags": [
+        "创造性",
+        "美学",
+        "技术应用"
+      ],
+      "confidence": "medium",
+      "note": "工业设计常按工科要 P；视觉传达多不限"
+    },
+    "哲学": {
+      "required_primary": null,
+      "required_electives_all": [],
+      "required_electives_any": [],
+      "traditional_track": "文",
+      "key_subjects": {
+        "语文": 0.45,
+        "外语": 0.25,
+        "历史": 0.2,
+        "政治": 0.05,
+        "数学": 0.05
+      },
+      "soft_thresholds": {
+        "语文": 105
+      },
+      "tags": [
+        "思辨",
+        "人文",
+        "学术"
+      ],
+      "confidence": "high"
+    }
+  },
+  "_user_additions": {
+    "微电子": {
+      "required_primary": "物理",
+      "required_electives_all": [],
+      "required_electives_any": [],
+      "traditional_track": "理",
+      "key_subjects": {
+        "物理": 0.3,
+        "数学": 0.3,
+        "化学": 0.2,
+        "外语": 0.15,
+        "语文": 0.05
+      },
+      "soft_thresholds": {
+        "物理": 85,
+        "数学": 110,
+        "化学": 70
+      },
+      "tags": [
+        "半导体",
+        "硬件",
+        "材料工程"
+      ],
+      "confidence": "medium",
+      "_source": "v2.1-backfill",
+      "_date": "2026-05-18"
+    }
+  }
+}

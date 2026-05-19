@@ -1,0 +1,185 @@
+{
+  "_meta": {
+    "version": "3.1.0",
+    "date": "2026-05-18",
+    "doc": "scoring_model.md",
+    "format": "trait_to_dim[question_id][answer_key][dimension] = multiplier_delta; final multiplier = product(1 + delta)",
+    "changes_v1_1": "Q12 moved out of trait_to_dim; per-major resource_sensitivity modulates Q3/Q5/Q7 (specific) and Q12 (global)",
+    "changes_v1_2": "Added ai_impact_levels: 4x4 matrix indexed by (ai_impact_level, ability_index). ability_index is derived from Q8-Q11 avg. Models AI polarization effect — high-ability users in boost majors benefit; low-ability users in boost majors get hurt.",
+    "changes_v1_4": "Added risk_appetite (Q1+Q18) as ADI multiplier on recover/paths dimensions; admission_blend; admission_recommender pipeline.",
+    "changes_v1_5": "REVERSED v1.4 risk_appetite ADI multiplication. Q1+Q18 → appetite now only drives (a) tie-break sort key in compute_all (averse→recover desc, seeking→paths desc), (b) report wording, (c) cross-validation prompt on AC/CA contradiction. ADI total is again pure baseline×personality×resource×ai_impact, restoring its 'objective walkable' semantic. Removed risk_appetite_levels coef table.",
+    "changes_v1_6": "Tie-break 从单维度升级为 4 维加权和。新增 appetite_tie_break_weights 矩阵：A=reach+recover, B=paths+recover+correct, C=paths+correct 三角，5 级线性插值。tie_break_score = Σ(w[dim] × adjusted[dim])；neutral (BB) 现在也有 tie-break（捕捉真权衡型偏好），AC/CA 矛盾仍跳过 tie-break。",
+    "changes_v1_7": "把 AC/CA 从 'neutral' 重命名为 'contradiction'，让 BB（真权衡）与 AC/CA（矛盾）在 risk_appetite label 上可区分。删除 score_engine._is_appetite_contradiction 冗余函数——contradiction 信号现在唯一从 appetite 字符串本身派生。",
+    "changes_v1_8": "appetite_tie_break_weights 加 contradiction 行（all-zeros）。原来 contradiction 缺席矩阵→走 None 分支跳过 tie-break；现在显式 all-zeros 行→加权和恒为 0，stable sort 保留输入序，行为等价但矩阵自解释。meta.appetite_tie_break_weights 从 None 变为 all-zeros dict。",
+    "changes_v1_9": "soft_filter 升级为双层：(L1) 绝对 soft_thresholds 不变；(L2) 新增相对偏科检测——基于学生自身归一化分数均值，低于均值 relative_gap 以上且 key_subjects 权重 ≥ weights_threshold 即标记 not_recommended。低分学生不再被 L1 全部挡掉。fit_score 加 favorite_fit_bonus（默认 0.05/命中，cap 1.0）。favorite_subjects 从 v1.4 起被收集但未消费的隐性 bug 修复。",
+    "changes_v2_0": "Skill 重命名 major-adi-zh → gaokao-adi。新增 alignment lint（baseline/admission 39 专业 key 集对齐）。score_engine.compute_extras 取 _admission_pool 的 strong/consider 桶或 fallback 全 39 专业，result.extras 含 top 3 推荐 + 可选 warning。result.student_context 透传 _student_profile。render_html 每张专业卡新增 3 个 subsection（你的画像 / 成绩匹配 / 一句话总结），末尾新增「额外推荐」章节（3 张推荐卡 × 3 段模板文案）。所有 narrative 走模板不依赖 LLM。",
+    "changes_v2_1": "三条数据质量与工作流修复：(2) 删除 6 个工科专业 (软件/信息安全/电子信息/自动化/电气/机械) soft_thresholds 化学，CS/信息安全 key_subjects 化学权重 0.20 → 0.10 并把空出的 0.10 加到数学+物理；(3) 提升 8 个数学密集专业的数学 threshold (数学 100→130, 应用数学 100→125, 统计学 100→120, 数据科学 100→115, 金融学 100→115, CS/信息安全 95→110, 经济学 95→105) 并加 `_subject_max_scales` 文档块明确各科目满分尺度；(1) admission_recommender.recommend 与 score_engine.compute_extras fallback 池均合并主表 + _user_additions；alignment lint 扩展同时校验 _user_additions 同步（baseline 与 admission 必须等集）；SKILL.md 「其他专业现场推断」步骤 1 加 admission 字段推断指引（required_primary/key_subjects/soft_thresholds 等 7 个字段），步骤 3 改为同时写两个文件的 _user_additions；既有 baseline._user_additions 微电子 补 admission 端镜像。",
+    "changes_v2_2": "8 个文社科/艺术/心理专业 key_subjects + soft_thresholds 按「实际本科课程 + 工作需要」原则纠偏：(a) 政治通病——哲学 0.25 / 法学 0.20 / 社会工作 0.20 / 新闻传播 0.15 / 教育学 0.15 / 艺术类 0.15 全部下调到 0.05-0.10，把多出的权重还给语文/外语/历史这些真正在本科课程里被高频使用的学科。政治课作为大学通识与「专业课依赖政治」不是一回事；(b) soft_thresholds 政治批量删 5 处（新闻传播 70 / 教育学 65 / 社会工作 65 / 法学 75 / 哲学 75）；(c) 设计类不依赖数学——key 数学 0.15→0.05、物理 0.15→0.10，把空出 0.15 加到语文/外语/历史；soft_thresholds 数学 85 删（艺术生数学不该卡硬线）；(d) 心理学权重反转——数学 0.20→0.15 但语文 0.15→0.25，新增语文 soft 95（论文阅读+实证写作刚需）；数学 soft 85→80（统计课重要但允许中等数学）。这次没动招生硬规则（required_primary 等），只调依赖权重，pytest 75/75 仍绿。",
+    "changes_v2_3": "继续按「实际本科课程」原则的两条数据气味清理：(1) 数学/应用数学/统计学 key 化学清零（本科不学化学），空出权重转给物理（数学专业最相关学科）；统计学额外把 0.05 转给语文（统计学论文写作要求）：数学 化学 0.10→0、物理 0.20→0.30；应数 化学 0.05→0、物理 0.20→0.25；统计 化学 0.10→0、物理 0.15→0.20、语文 0.10→0.15。(2) 6 个商科专业（工商管理/市场营销/国际商务/电子商务/物流管理/会计学）政治权重 0.10→0.05，空出 0.05 一律加到外语——商科 globalization 时代外语权重应高于政策；其中国际商务外语从 0.35 → 0.40 进一步强化首要地位。所有 key_subjects sum 严格保持 = 1.0。验证：75/75 测试绿，纯 JSON 改动无代码变更。",
+    "changes_v2_4": "物理专业去化学（不对称修正）：物理本科不学化学课，但化学专业本科核心必修物理化学——这是个常被混淆的不对称依赖。改动：物理专业 key 化学 0.15→0.05、物理 0.40→0.45（强化首要）、外语 0.10→0.15（物理学论文英文）；soft_thresholds 删化学 70。化学专业不动（soft_thresholds 物理 70 合理保留——物理化学/量子化学/光谱学都需要物理基础）。sum=1.0 严格保持；75/75 测试绿。",
+    "changes_v2_5": "全面清理 key_subjects 中的 生物/化学/地理/政治 错位权重——按「除非特殊专业否则不依赖」原则。29 个专业更新：(政治) 15 个清零（护理/经济/金融/工商/市场营销/国际商务/物流/电商/供应链/会计/汉语言/英语/心理/艺术/设计），5 个降到 0.05（新闻传播/教育/社工/法学/哲学，作为政策/政治哲学边缘弱信号）。(化学) 8 个工科清零（DS/CS/信息安全/电子信息/自动化/电气/机械/物理），土木 0.10→0.05（材料化学）+ 心理 0.10→0.05（生理心理）+ 建筑 0.05 保留；化学/生物科学/环境/医学/药学/护理 化学权重不动（核心相关）。(生物) 3 个工科清零（DS/CS/信息安全 0.05→0）；医学/生物族不动。(地理) 13 个清零（工商/市场营销/国际商务/电商/会计/英语/新闻/教育/社工/法学/艺术/设计/哲学），仅保留物流/供应链 0.15（运输/全球网络）和建筑学 0.10（场地分析）。空出的权重每个专业按对口学科重分配，所有 sum 严格=1.0：工科→数学+物理+语文，商科→数学+外语+语文+历史，文社科→语文+外语+历史。零代码改动；75/75 测试绿。",
+    "changes_v2_6": "Q08-Q14 每个选项加 notes 字段（具体高考分/排名/行为锚点）+ SKILL.md AskUserQuestion 调用规范收紧。背景：用户在跑测评时发现 Q08 显示文案与 question_bank.json 不符——Claude 在 AskUserQuestion 调用时擅自补充'高考 600+/班级头部'等具体锚点（甚至引入错别字「绿高考考」），单一真理源被破坏。改动：(1) question_bank.json 给 Q08-Q14 七题的 28 个选项加 notes 字段——把 Claude 创造的有用锚点正式化，杜绝幻觉漂移；(2) SKILL.md Step 3-5 合并并加「AskUserQuestion 调用规范」节，明确字段映射 `description = qbank.description + '（参考：' + notes + '）'`；列出违规警示（自创锚点 / 改字如 D 弱→较弱 / 错别字 / 加建议性文字）；(3) 新增 lint `test_question_bank_notes_present_for_q08_q14` 确保未来 notes 不被删除。Q01/Q15/Q16/Q17/Q18 不含 notes（描述已具体）。76/76 测试绿。",
+    "changes_v2_7": "基于用户实际跑测评时 Claude 显示的 12 题内容（含 Q01/Q15-Q18），把所有 Claude 自创的有用锚点正式化为 notes 字段（清洗错别字 + 修正语义漂移）。改动：(1) Q01 加 notes（稳定型→医生/公务员、可调整→CS/数学/经济、冲上限→金融/创业）；(2) Q08-Q14 现有 notes 用 Claude 显示的行为细节增强（「能从难中找乐趣」「沉没成本不构成阻碍」等）；(3) Q15 加 notes（上升/稳定底盘/下降需恢复）；(4) Q16 加 notes 并**严格按 JSON 顺序对齐**——A=优先学校（名校光环可靠）、B=优先专业（占先机）、C=看情况（综合判断），修正 Claude 在 askUserQuestion 中把 A/C 顺序搞反的隐患；(5) Q17 加 notes（不重要/中大型/一线/只一线）；(6) Q18 加 notes（避险/权衡/进取）。修正错别字：「绿高考考」→「高考预期」、「召难」→「枯燥」、「携动」→「裹挟」、「赔成本」→「沉没成本」、「点注」→「点拨」、「错远目标」→「长远目标」、「拓展身外」→「拓展课外」、「占个赔始」→「占先机」、「备粗的」→「更可靠的」、「锐问」→「大风险」、「锉」→「升」、「心里质量底定」→「心理素质底盘」。共更新 44 个选项 notes。Lint test 扩展为 Q01/Q08-Q18 全部 12 题必须有 notes。76/76 测试绿。",
+    "changes_v3_0": "question_bank.json 的 description 从单行串升级为多 bullet 串（用 \\n 分隔 2-3 个并列短句），verbatim 还原用户提供的原始问卷内容。例：Q08 A 原本 '学新知识通常很快能抓住重点；较复杂内容也能较快理解' → 现 3 条独立 bullet 「学新知识通常很快能抓住重点 / 面对较复杂内容，也能较快理解 / 学过后能较稳定掌握」。改动：(1) 44 个选项 description 重写为多 bullet 格式——Q01/Q08-Q14/Q17/Q18 全部多行；Q15/Q16 保持短描述单行；Q02-Q07 资源题不动。(2) SKILL.md 「AskUserQuestion 调用规范」升级到 v3.0：明确 description 多行渲染，调用时保留 \\n 不变（AskUserQuestion 渲染器自动把每行作为 bullet 展示），最终 description = qbank.description + \\n + （参考：notes）；违规警示加两条——禁止合并 bullet、禁止删除 bullet。(3) 示例代码 Q08 展示完整多行写法。零代码改动（render 层用 label 不读 description）；76/76 测试绿。",
+    "changes_v3_1": "Q01 前置到 Step 3 第一题，最大化与 Q18（仍在最后）的间隔。背景：v3.0 之前 Q01 和 Q18 同在 Step 5 最后一轮（紧邻），违背心理测量学经典设计——两题测同一构念的不同层面（Q01 认知/价值/'want'，Q18 行为/情绪/'response'），分置首尾才能捕捉真实的态度漂移，紧邻问会触发 consistency-bias 让用户潜意识保持一致。改动（纯 SKILL.md 文档，零代码零数据改动）：Step 3-5 三轮 AskUserQuestion 重组——(a) Step 3 偏好/状态族（Q01/Q15/Q16/Q17）front-load 在能力测试前；(b) Step 4 能力族（Q08-Q11）不动，居中做 deep-dive；(c) Step 5 意愿+风险族（Q12/Q13/Q14/Q18）back-load，Q18 在用户经过 14 题素质题暴露真实自我后才回答，与 Q01 距离 11 题。SKILL.md 加段「为什么 Q01 前置、Q18 后置」详细解释心理测量学动机（认知层 vs 情绪层、未启动 vs 真实反应、AC/CA 矛盾诊断）。76/76 测试绿。"
+  },
+  "trait_to_dim": {
+    "Q08": {
+      "A": {"reach": 0.20},
+      "B": {"reach": 0.05},
+      "C": {"reach": -0.10},
+      "D": {"reach": -0.25}
+    },
+    "Q09": {
+      "A": {"reach": 0.20},
+      "B": {"reach": 0.05},
+      "C": {"reach": -0.10},
+      "D": {"reach": -0.25}
+    },
+    "Q10": {
+      "A": {"correct": 0.20},
+      "B": {"correct": 0.05},
+      "C": {"correct": -0.10},
+      "D": {"correct": -0.25}
+    },
+    "Q11": {
+      "A": {"correct": 0.20},
+      "B": {"correct": 0.05},
+      "C": {"correct": -0.10},
+      "D": {"correct": -0.25}
+    },
+    "Q13": {
+      "A": {"reach": 0.15, "paths": 0.10},
+      "B": {"reach": 0.05, "paths": 0.05},
+      "C": {"reach": -0.10, "paths": -0.05},
+      "D": {"reach": -0.20, "paths": -0.15}
+    },
+    "Q14": {
+      "A": {"paths": 0.25},
+      "B": {"paths": 0.10},
+      "C": {"paths": -0.05},
+      "D": {"paths": -0.15}
+    }
+  },
+  "resource_to_recover": {
+    "_doc": "Q3/Q5/Q7 per-major resource. Final delta = base * resource_sensitivity_levels[major.sensitivity].specific",
+    "A": 0.20,
+    "B": 0.05,
+    "C": 0.00
+  },
+  "global_resource_to_recover": {
+    "_doc": "Q12 global family support. Final delta = base * resource_sensitivity_levels[major.sensitivity].global",
+    "A": 0.15,
+    "B": 0.05,
+    "C": -0.05,
+    "D": -0.15
+  },
+  "resource_sensitivity_levels": {
+    "_doc": "Per-major resource sensitivity multipliers. Tune here without touching algorithm code.",
+    "low":      {"specific": 0.5, "global": 0.7},
+    "default":  {"specific": 1.0, "global": 1.0},
+    "high":     {"specific": 1.5, "global": 1.3},
+    "decisive": {"specific": 2.0, "global": 1.5}
+  },
+  "ability_index_thresholds": {
+    "_doc": "Maps avg(Q8,Q9,Q10,Q11) on A=4/B=3/C=2/D=1 scale to ability index. avg >= threshold -> level.",
+    "high":     3.5,
+    "mid":      2.5,
+    "low":      1.5,
+    "very_low": 0
+  },
+  "ai_impact_levels": {
+    "_doc": "Polarization matrix: ai_impact_levels[major.ai_impact][ability_index][dimension] = additive delta. Applied to reach and paths only (not correct/recover). Tune here without touching algorithm code.",
+    "boost": {
+      "high":     {"reach": 0.20, "paths": 0.20},
+      "mid":      {"reach": 0.05, "paths": 0.10},
+      "low":      {"reach": -0.10, "paths": 0.00},
+      "very_low": {"reach": -0.25, "paths": -0.10}
+    },
+    "neutral": {
+      "high":     {"reach": 0.00, "paths": 0.00},
+      "mid":      {"reach": 0.00, "paths": 0.00},
+      "low":      {"reach": 0.00, "paths": 0.00},
+      "very_low": {"reach": 0.00, "paths": 0.00}
+    },
+    "disrupted": {
+      "high":     {"reach": 0.00, "paths": -0.05},
+      "mid":      {"reach": -0.05, "paths": -0.05},
+      "low":      {"reach": -0.15, "paths": -0.10},
+      "very_low": {"reach": -0.25, "paths": -0.15}
+    },
+    "threatened": {
+      "high":     {"reach": -0.10, "paths": -0.10},
+      "mid":      {"reach": -0.20, "paths": -0.15},
+      "low":      {"reach": -0.30, "paths": -0.20},
+      "very_low": {"reach": -0.40, "paths": -0.25}
+    }
+  },
+  "state_global": {
+    "A": 0.05,
+    "B": 0.00,
+    "C": -0.05
+  },
+  "appetite_tie_break_weights": {
+    "_doc": "v1.6 加权三角：每个 appetite 给 4 个维度一组权重，tie_break_score = Σ(w[dim] × adjusted[dim])，仅在 ADI total 完全相同时作为 secondary sort key。\n\n派生：A 稳定 → {reach, recover}；B 可调整 → {paths, recover, correct}；C 冲上限 → {paths, correct}。5 级线性插值 strong_averse=1.0A / averse=0.7A+0.3B / neutral=1.0B / seeking=0.3B+0.7C / strong_seeking=1.0C。每行权重和=1.0。v1.8：contradiction 行显式 all-zeros，语义为「矛盾信号下不偏好任何维」，加权和恒为 0，同分按 majors_input 稳定排序。",
+    "strong_averse":  {"paths": 0.00, "reach": 0.50, "correct": 0.00, "recover": 0.50},
+    "averse":         {"paths": 0.10, "reach": 0.35, "correct": 0.10, "recover": 0.45},
+    "neutral":        {"paths": 0.34, "reach": 0.00, "correct": 0.33, "recover": 0.33},
+    "seeking":        {"paths": 0.45, "reach": 0.00, "correct": 0.45, "recover": 0.10},
+    "strong_seeking": {"paths": 0.50, "reach": 0.00, "correct": 0.50, "recover": 0.00},
+    "contradiction":  {"paths": 0.00, "reach": 0.00, "correct": 0.00, "recover": 0.00}
+  },
+  "q1_q18_to_appetite": {
+    "_doc": "(Q1, Q18) 答案组合 → risk_appetite level。键为 'Q1Q18' 拼接。v1.7：AC/CA 单独命名为 'contradiction'（v1.6 之前被归为 'neutral'，与 BB 同名导致下游无法区分真权衡 vs 矛盾）。'contradiction' 不在 appetite_tie_break_weights 表中，查表返回 None → 同分按 majors_input 稳定排序。仅用于 (a) compute_all 同分 tie-break 排序（按 appetite_tie_break_weights 查 4 维加权和），(b) 报告措辞，(c) 'contradiction' 触发交叉验证警告。不进入 ADI 乘法链。",
+    "AA": "strong_averse",
+    "AB": "averse",
+    "BA": "averse",
+    "AC": "contradiction",
+    "CA": "contradiction",
+    "BB": "neutral",
+    "BC": "seeking",
+    "CB": "seeking",
+    "CC": "strong_seeking"
+  },
+  "_subject_max_scales": {
+    "_doc": "v2.1：majors_admission_2024.json::soft_thresholds 使用各科目原始分（非归一化）。各科目满分参考如下——例如 '数学: 130' 表示 130/150 即 87%；'物理: 80' 表示 80/100 即 80%。阅读 threshold 数值时务必对照本表确认科目尺度。",
+    "语文": 150,
+    "数学": 150,
+    "外语": 150,
+    "物理": 100,
+    "化学": 100,
+    "生物": 100,
+    "政治": 100,
+    "历史": 100,
+    "地理": 100,
+    "理综": 300,
+    "文综": 300
+  },
+  "soft_filter_relative": {
+    "_doc": "v1.9 双层 soft_filter：(L1) 原 majors_admission_2024.json::soft_thresholds 绝对分线；(L2) 相对偏科——学生自身归一化分数低于均值超过 relative_gap → 视为偏科，若 key_subjects 权重 ≥ weights_threshold 则 not_recommended。fit_score 额外把 favorite_subjects 与 key_subjects 的交集每命中一项加 favorite_fit_bonus，最终 cap 1.0。低分省/弱学生场景下 L1 全部失效时仍可被 L2 准确筛选。",
+    "weights_threshold": 0.25,
+    "relative_gap": 0.15,
+    "favorite_fit_bonus": 0.05
+  },
+  "admission_blend": {
+    "_doc": "admission_score (0-1) 影响 ADI total 的方式：final = ADI × (min_factor + range × admission_score)。admission_score=1 完全匹配时不动 ADI；=0 时 ADI × min_factor。",
+    "min_factor": 0.7,
+    "range": 0.3
+  },
+  "fit_score_weights": {
+    "_doc": "推荐 score 各分项权重（暂仅实现 fit 子分；strength/preference/total 留待阶段 2）。",
+    "fit": 1.0,
+    "strength": 0.0,
+    "preference": 0.0,
+    "total": 0.0
+  },
+  "clamp": {
+    "min": 1.0,
+    "max": 5.0
+  },
+  "grade_thresholds": {
+    "low_difficulty": 300,
+    "medium": 150,
+    "high_difficulty": 50
+  }
+}

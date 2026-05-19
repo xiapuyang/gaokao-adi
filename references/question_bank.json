@@ -1,0 +1,622 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "source": "Clippings/202605/高考专业选择路径测评（ADI模型）.md",
+    "total_questions": 18,
+    "scoring_questions": [
+      "Q03",
+      "Q05",
+      "Q07",
+      "Q08",
+      "Q09",
+      "Q10",
+      "Q11",
+      "Q12",
+      "Q13",
+      "Q14",
+      "Q15"
+    ],
+    "display_only_questions": [
+      "Q01",
+      "Q16",
+      "Q17",
+      "Q18"
+    ],
+    "major_select_questions": [
+      "Q02",
+      "Q04",
+      "Q06"
+    ]
+  },
+  "major_categories": {
+    "_note": "AskUserQuestion 单题最多 4 选项；39 专业用两层菜单：先选大类，再选具体专业",
+    "categories": [
+      {
+        "key": "stem_basic",
+        "label": "理工基础学科",
+        "majors": [
+          "数学",
+          "物理",
+          "化学",
+          "生物科学",
+          "统计学",
+          "应用数学"
+        ]
+      },
+      {
+        "key": "compute_electronics",
+        "label": "计算机与电子",
+        "majors": [
+          "数据科学 / 人工智能",
+          "计算机类 / 软件工程",
+          "信息安全 / 网络工程",
+          "电子信息工程",
+          "自动化"
+        ]
+      },
+      {
+        "key": "engineering",
+        "label": "传统工程",
+        "majors": [
+          "电气工程",
+          "机械工程",
+          "土木工程",
+          "环境工程"
+        ]
+      },
+      {
+        "key": "medical",
+        "label": "医学类",
+        "majors": [
+          "临床医学",
+          "口腔医学",
+          "药学",
+          "护理学"
+        ]
+      },
+      {
+        "key": "business",
+        "label": "商科类",
+        "majors": [
+          "经济学",
+          "金融学",
+          "工商管理",
+          "市场营销",
+          "国际商务",
+          "物流管理",
+          "电子商务",
+          "供应链管理",
+          "会计学"
+        ]
+      },
+      {
+        "key": "humanities",
+        "label": "文社科类",
+        "majors": [
+          "汉语言文学",
+          "英语/外语",
+          "新闻传播 / 传播学",
+          "教育学",
+          "心理学",
+          "社会工作",
+          "法学",
+          "哲学"
+        ]
+      },
+      {
+        "key": "applied_arts",
+        "label": "应用与艺术",
+        "majors": [
+          "建筑学",
+          "艺术类（美术/音乐/表演）",
+          "设计类（视觉传达/产品设计等）"
+        ]
+      },
+      {
+        "key": "other",
+        "label": "其他（自由输入）",
+        "majors": []
+      }
+    ]
+  },
+  "questions": [
+    {
+      "id": "Q01",
+      "type": "single_select",
+      "title": "你更倾向哪种路径？",
+      "feeds": [
+        "display_ranking"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "label": "稳定路径型",
+          "description": "希望进入一个体系后，能长期稳定发展\n不希望频繁换方向或折腾\n可以接受过程慢一些，但要稳",
+          "notes": "看重保底；进度可控、起点不低、能渐进上升（对应医生/公务员/法官等体制内路径）"
+        },
+        {
+          "key": "B",
+          "label": "可调整路径型",
+          "description": "希望未来有调整空间，可以换方向或尝试不同路径\n不希望被一条路锁死\n希望进退都有选择",
+          "notes": "要有转向空间；发现不适合能改走、职业迁徙选择多（对应计算机/数学/经济）"
+        },
+        {
+          "key": "C",
+          "label": "冲上限路径型",
+          "description": "希望争取更高上限\n可以接受路径更难、更不确定\n即使失败也可以重新来",
+          "notes": "赌大成功；偏好高峰机会、愿意拼、接受较高失败率（对应金融/创业/科研突破型）"
+        }
+      ]
+    },
+    {
+      "id": "Q02",
+      "type": "major_select",
+      "title": "你目前最想报考、且分数大致可能覆盖到的第 1 个专业",
+      "feeds": [
+        "major_select"
+      ],
+      "rank": 1
+    },
+    {
+      "id": "Q03",
+      "type": "single_select",
+      "title": "对于专业 1，你是否具备相关家庭或亲属资源？",
+      "feeds": [
+        "recover_per_major"
+      ],
+      "applies_to_major_rank": 1,
+      "options": [
+        {
+          "key": "A",
+          "label": "明显有",
+          "description": "直系亲属 / 直接资源"
+        },
+        {
+          "key": "B",
+          "label": "有一些",
+          "description": "间接资源 / 人脉"
+        },
+        {
+          "key": "C",
+          "label": "基本没有",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "id": "Q04",
+      "type": "major_select",
+      "title": "你目前最想报考、且分数大致可能覆盖到的第 2 个专业",
+      "feeds": [
+        "major_select"
+      ],
+      "rank": 2
+    },
+    {
+      "id": "Q05",
+      "type": "single_select",
+      "title": "对于专业 2，你是否具备相关家庭或亲属资源？",
+      "feeds": [
+        "recover_per_major"
+      ],
+      "applies_to_major_rank": 2,
+      "options": [
+        {
+          "key": "A",
+          "label": "明显有",
+          "description": "直系亲属 / 直接资源"
+        },
+        {
+          "key": "B",
+          "label": "有一些",
+          "description": "间接资源 / 人脉"
+        },
+        {
+          "key": "C",
+          "label": "基本没有",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "id": "Q06",
+      "type": "major_select",
+      "title": "你目前最想报考、且分数大致可能覆盖到的第 3 个专业",
+      "feeds": [
+        "major_select"
+      ],
+      "rank": 3
+    },
+    {
+      "id": "Q07",
+      "type": "single_select",
+      "title": "对于专业 3，你是否具备相关家庭或亲属资源？",
+      "feeds": [
+        "recover_per_major"
+      ],
+      "applies_to_major_rank": 3,
+      "options": [
+        {
+          "key": "A",
+          "label": "明显有",
+          "description": "直系亲属 / 直接资源"
+        },
+        {
+          "key": "B",
+          "label": "有一些",
+          "description": "间接资源 / 人脉"
+        },
+        {
+          "key": "C",
+          "label": "基本没有",
+          "description": ""
+        }
+      ]
+    },
+    {
+      "id": "Q08",
+      "type": "single_select",
+      "title": "学习能力",
+      "subtitle": "理解和掌握新知识的能力",
+      "feeds": [
+        "reach"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "label": "强",
+          "description": "学新知识通常很快能抓住重点\n面对较复杂内容，也能较快理解\n学过后能较稳定掌握",
+          "notes": "高考预期 600+ 或代表性奖项；班级/年级头部；能举一反三"
+        },
+        {
+          "key": "B",
+          "label": "中上",
+          "description": "大多数内容可以理解\n较难内容需要多花一些时间\n经过练习通常可以掌握",
+          "notes": "努力后能达到较好状态；班级中上水平；高考接近一本线或略高"
+        },
+        {
+          "key": "C",
+          "label": "中下",
+          "description": "基础内容可以学会\n稍复杂的内容就容易吃力\n需要较多重复才能掌握",
+          "notes": "努力后能达到中等水平；机械性学习为主；举一反三较弱"
+        },
+        {
+          "key": "D",
+          "label": "弱",
+          "description": "新知识理解较慢\n稍难内容就容易跟不上\n即使反复学，掌握也不稳定",
+          "notes": "学新东西吃力，需要反复讲解才能听懂；不建议读对学习要求高的专业"
+        }
+      ]
+    },
+    {
+      "id": "Q09",
+      "type": "single_select",
+      "title": "学习难度承受能力",
+      "subtitle": "面对高难度内容时的承受和持续能力",
+      "feeds": [
+        "reach"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "label": "强",
+          "description": "面对高难内容不会本能回避\n即使短时间没有结果，也能持续投入\n能接受\"学得慢但必须学会\"的过程",
+          "notes": "能长期坐冷板凳；不依赖反馈；能从难中找乐趣（如能啃考研数学/医学背书）"
+        },
+        {
+          "key": "B",
+          "label": "中上",
+          "description": "愿意面对较难内容\n在压力下仍能坚持一段时间\n不会轻易放弃高难任务",
+          "notes": "有明确目标时能坚持；需要阶段性反馈"
+        },
+        {
+          "key": "C",
+          "label": "中下",
+          "description": "可以接受中等难度\n难度一高就容易拖延或停滞\n常需要外部推动才能继续",
+          "notes": "能完成作业型任务；需要人推；坚持不太久"
+        },
+        {
+          "key": "D",
+          "label": "弱",
+          "description": "本能回避高难内容\n一旦觉得太难就想放弃或换更容易的\n很难长期承受高难训练",
+          "notes": "对压力敏感；不能长期坚持枯燥任务；不建议读纯理/考研型专业"
+        }
+      ]
+    },
+    {
+      "id": "Q10",
+      "type": "single_select",
+      "title": "试错能力",
+      "subtitle": "方法失败后是否还能继续尝试",
+      "feeds": [
+        "correct"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "label": "强",
+          "description": "一个方法失败后，会主动换方法继续试\n多次失败也不会明显影响后续尝试\n能把失败当作筛选路径的一部分",
+          "notes": "面对不确定不焦虑；愿意从失败中提取信息，能多轮重启（适合科研/创业/作品迭代型）"
+        },
+        {
+          "key": "B",
+          "label": "中上",
+          "description": "失败后愿意再试几次\n会做一定调整\n不会因为一次失败就放弃",
+          "notes": "能试错但需要阶段性胜利；连续失败会被拖垮"
+        },
+        {
+          "key": "C",
+          "label": "中下",
+          "description": "失败后会犹豫\n尝试次数很有限\n连续失败后容易停止",
+          "notes": "有路径才能走；需要别人指点才调整"
+        },
+        {
+          "key": "D",
+          "label": "弱",
+          "description": "一旦失败就明显退缩\n很少主动换方法再试\n倾向回避可能失败的路径",
+          "notes": "不确定让你难受；需要明确路线才能动"
+        }
+      ]
+    },
+    {
+      "id": "Q11",
+      "type": "single_select",
+      "title": "调整能力",
+      "subtitle": "能否复盘并改进做法",
+      "feeds": [
+        "correct"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "label": "强",
+          "description": "会主动复盘问题出在哪\n能总结出可执行的改法\n同类问题会明显减少",
+          "notes": "能识别问题 + 决断换道；沉没成本不构成阻碍"
+        },
+        {
+          "key": "B",
+          "label": "中上",
+          "description": "会总结部分问题\n能做一些调整\n改进通常有一定效果",
+          "notes": "能调整但需要外部推一把（朋友/家人/导师点拨）"
+        },
+        {
+          "key": "C",
+          "label": "中下",
+          "description": "偶尔会复盘\n但改进不稳定\n同类问题仍会重复出现",
+          "notes": "跳出舒适区难；对沉没成本敏感"
+        },
+        {
+          "key": "D",
+          "label": "弱",
+          "description": "很少复盘\n即使知道有问题，也不知道怎么改\n行为方式基本不变",
+          "notes": "一旦选定就不愿换；哪怕明知走错也会硬撑"
+        }
+      ]
+    },
+    {
+      "id": "Q12",
+      "type": "single_select",
+      "title": "家庭支持",
+      "subtitle": "家里在经济、信息、选择建议或风险兜底方面的整体支持",
+      "feeds": [
+        "recover"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "label": "明显支持",
+          "description": "家里能提供明显支持\n在选专业、发展方向或关键节点上能帮到你",
+          "notes": "直系亲属在目标行业；能提供项目机会/实习/实质指导；或家庭财力足以兜底"
+        },
+        {
+          "key": "B",
+          "label": "一定支持",
+          "description": "家里能提供一定支持\n遇到关键问题时可以给帮助",
+          "notes": "间接人脉，能提供一定指导或财务资助；但不是核心依赖对象"
+        },
+        {
+          "key": "C",
+          "label": "基本支持",
+          "description": "家里能提供基本支持\n但很难在方向或资源上给明显帮助",
+          "notes": "主要是生活费级别的支持；资源/人脉上帮不上忙"
+        },
+        {
+          "key": "D",
+          "label": "几乎无",
+          "description": "家里几乎无法提供支持\n需要你主要自己承担试错和风险",
+          "notes": "家庭经济有压力，可能还要贴补家里"
+        }
+      ]
+    },
+    {
+      "id": "Q13",
+      "type": "single_select",
+      "title": "长期投入意愿",
+      "subtitle": "是否接受多年高投入、回报来得较慢的路径",
+      "feeds": [
+        "reach",
+        "paths"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "label": "强",
+          "description": "可以接受多年持续高投入\n不介意前期辛苦、回报较晚",
+          "notes": "愿意为长远目标努力 5 年以上；不被中途比较裹挟"
+        },
+        {
+          "key": "B",
+          "label": "中上",
+          "description": "愿意投入较长时间\n但希望中途能看到阶段性回报",
+          "notes": "愿意努力但需要阶段性成果反馈"
+        },
+        {
+          "key": "C",
+          "label": "中下",
+          "description": "只接受中等投入\n不太想走长期高压、回报慢的路径",
+          "notes": "看眼前收益；反馈慢会被拖累"
+        },
+        {
+          "key": "D",
+          "label": "弱",
+          "description": "不接受长期高投入\n更希望尽快见效，走不顺就转向",
+          "notes": "要求快反馈、快退出才能坚持；长线坚持不下来"
+        }
+      ]
+    },
+    {
+      "id": "Q14",
+      "type": "single_select",
+      "title": "能力拓展习惯",
+      "subtitle": "是否会主动学习专业之外的额外技能（英语、编程、证书、工具等）",
+      "feeds": [
+        "paths"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "label": "持续主动",
+          "description": "会持续主动学习额外技能\n比如英语、编程、证书、工具等",
+          "notes": "主动拓展，有 1-2 个跨学科项目/副业/独立作品；持续多年"
+        },
+        {
+          "key": "B",
+          "label": "一定拓展",
+          "description": "有一定拓展行为\n会主动补一些额外技能",
+          "notes": "有动力但不持续；偶尔会去发现新兴趣"
+        },
+        {
+          "key": "C",
+          "label": "偶尔",
+          "description": "偶尔会学一点\n但不持续、不稳定",
+          "notes": "以课内为主；偶尔尝试但浅尝辄止"
+        },
+        {
+          "key": "D",
+          "label": "不主动",
+          "description": "基本不主动拓展\n主要只完成眼前要求",
+          "notes": "除了必须完成的，不主动学其他东西"
+        }
+      ]
+    },
+    {
+      "id": "Q15",
+      "type": "single_select",
+      "title": "最近一段时间，你的整体学习状态和发展势头更接近？",
+      "feeds": [
+        "global_state"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "label": "上升",
+          "description": "整体状态在变好，学习更顺，表现有改善",
+          "notes": "越学越顺；状态向上；动力增加"
+        },
+        {
+          "key": "B",
+          "label": "稳定",
+          "description": "整体变化不大",
+          "notes": "不升不降，保持现状；稳态是心理素质底盘"
+        },
+        {
+          "key": "C",
+          "label": "下降",
+          "description": "状态变差，效率或表现有下滑",
+          "notes": "越来越学不进去；动力下降；需要恢复"
+        }
+      ]
+    },
+    {
+      "id": "Q16",
+      "type": "single_select",
+      "title": "如果学校档次和专业之间必须取舍，你更倾向？",
+      "feeds": [
+        "display_advice"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "label": "优先更好的学校",
+          "description": "专业可以适当妥协",
+          "notes": "名校带来的资源/牌子加成更可靠；专业可以后期转或读研换"
+        },
+        {
+          "key": "B",
+          "label": "优先更好的专业",
+          "description": "学校档次可以适当下降",
+          "notes": "选对口、能占先机的专业；学校退一档可以接受"
+        },
+        {
+          "key": "C",
+          "label": "需要结合具体情况",
+          "description": "需要结合具体情况判断",
+          "notes": "学校档次与专业重要性都看；会综合判断"
+        }
+      ]
+    },
+    {
+      "id": "Q17",
+      "type": "single_select",
+      "title": "你对「大学所在城市的发展机会」的重视程度",
+      "subtitle": "仅考虑实习、就业、资源平台等发展机会，不考虑气候、离家远近",
+      "feeds": [
+        "display_advice"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "label": "不重要",
+          "description": "主要看专业或学校\n城市差异对我影响不大",
+          "notes": "只要专业好，哪个城市都能接受"
+        },
+        {
+          "key": "B",
+          "label": "一般",
+          "description": "会考虑城市\n但不是决定性因素",
+          "notes": "偏好中大型城市，但专业好可以让步"
+        },
+        {
+          "key": "C",
+          "label": "比较重要",
+          "description": "倾向选择机会更多的城市\n城市会明显影响我的选择",
+          "notes": "偏好北京/上海/广深/杭州这种一线/新一线"
+        },
+        {
+          "key": "D",
+          "label": "非常重要",
+          "description": "优先考虑城市平台\n即使学校或专业略有让步也能接受",
+          "notes": "只接受一线城市；即使该专业弱也选一线平台"
+        }
+      ]
+    },
+    {
+      "id": "Q18",
+      "type": "single_select",
+      "title": "面对不确定和可能失败时，你通常的状态是？",
+      "feeds": [
+        "display_ranking"
+      ],
+      "options": [
+        {
+          "key": "A",
+          "label": "避险",
+          "description": "会明显倾向选择更稳的方式\n尽量避免可能出错的路径\n更在意结果可控",
+          "notes": "偏好保底/稳定/下限高的专业；不赌大风险"
+        },
+        {
+          "key": "B",
+          "label": "权衡",
+          "description": "可以接受一定不确定性\n会在风险和收益之间权衡",
+          "notes": "上限下限综合看；接受适度不确定性"
+        },
+        {
+          "key": "C",
+          "label": "进取",
+          "description": "对不确定性接受度较高\n不太担心失败带来的影响\n更愿意尝试可能性更大的方向",
+          "notes": "偏好上限高的专业；接受较高不确定性/沉没成本"
+        }
+      ]
+    }
+  ]
+}
