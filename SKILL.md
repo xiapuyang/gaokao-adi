@@ -31,7 +31,25 @@ ADI 4 维度（每项 1-5 分，相乘 1-625）：
 
 ## 主流程
 
-### Step 0: 暖场 + 询问是否要"按成绩推荐"分支
+### Step 0: 收集昵称并创建 session 目录（必须先做，第一句话）
+
+任何其他交互之前，先用一句话问昵称：
+
+> 这次测评是给谁做的？给个简短代号就行（例：`student-a`、`kid1`、`self`、`考生1`；不必用真名）。
+> 我会把所有过程文件（问卷答案、输入信息、中间结果、报告）放到 `~/.gaokao/<代号>-<时间戳>/` 下，方便你以后回看。
+> 提示：目录会持久保留在本机，挑一个**你能识别但不暴露隐私**的代号最好。
+
+收到昵称后**立刻**执行：
+
+1. **清洗 slug**：把空格、`/`、`\`、`:`、`*`、`?`、`"`、`<`、`>`、`|` 等文件系统非法字符替换成 `-`；不限制中文（macOS APFS 原生支持）
+2. **生成时间戳**：`YYYYMMDD-HHMMSS`（秒级足够，单次 session 不会重名）
+3. **拼出 SESSION_DIR**：`~/.gaokao/<nickname-slug>-<timestamp>`
+4. **建目录**：`mkdir -p "$SESSION_DIR"`
+5. **告知用户**一次完整路径，例：「过程文件会存到 `~/.gaokao/student-a-20260519-143012/`」
+
+后续**所有**中间文件（`student.json`、`gaokao-adi-input.json`）和产出文件（Markdown、HTML 报告）一律写到 `$SESSION_DIR/`，**禁止**使用 `$CLAUDE_JOB_DIR` 或 `/tmp/`——前者只在当前 job 生命周期内存在，后者跨进程会被清。`~/.gaokao/` 持久、可检索、可按昵称排序。
+
+### Step 0.5: 暖场 + 询问是否要"按成绩推荐"分支
 
 读 `references/theory.md` 前 30 行，用 3-4 句话向用户复述 ADI 模型。然后**问一个分支决策**（用 AskUserQuestion 单题 2 选项）：
 
@@ -54,8 +72,8 @@ ADI 4 维度（每项 1-5 分，相乘 1-625）：
    - 数学 /150
    - 外语 /150
    - 选考 1 / 选考 2 / 选考 3（科目名 + 原始分；3+3 满分 100；3+1+2 首选 100/再选赋分 100）
-3. 哪些科目你最喜欢？（1-3 个）— **v1.9 起**：在 fit_score 里每命中专业 key_subjects 一项加 +0.05 bonus（cap 1.0）
-4. 哪些科目你最不喜欢？（1-3 个）— 命中 key_subjects 权重 ≥0.25 的专业会被软过滤拦截
+3. 哪些科目你最**喜欢**？（1-3 个）— 标准：愿意主动花时间钻研、不靠逼自己也会去学的科目（不是"考得好"，是"愿意做"）。影响：v2.0 起按 key_subject 权重缩放——命中专业核心科目（如 CS 的数学 weight 0.4）才给可见 bonus；trivial 权重命中（0.05）几乎无加成。不会颠覆排序，只在同档内微调。
+4. 哪些科目你最**不喜欢**？（1-3 个）— 标准要**严苛**：长期学起来真的痛苦/抗拒、未来 4 年大学不想再碰的（不是"偶尔难"或"分数低"）。影响：命中 key_subjects 权重 ≥0.25 的专业会被**软过滤直接剔除**，是**硬性筛选**。填得太随意会无意删掉本可走通的专业；不确定就少填或留空。
 ```
 
 读 `references/provinces.json` 推断 mode（北京/上海/天津/浙江/山东/海南→3+3 系列；河北等 23 省→3+1+2；新疆/西藏→traditional）。
@@ -75,10 +93,10 @@ ADI 4 维度（每项 1-5 分，相乘 1-625）：
 }
 ```
 
-写到 `$CLAUDE_JOB_DIR/student.json`，跑：
+写到 `$SESSION_DIR/student.json`（Step 0 已建好目录），跑：
 ```bash
 cd ~/.claude/skills/gaokao-adi && \
-  python scripts/admission_recommender.py --input <path> --top 15
+  python scripts/admission_recommender.py --input "$SESSION_DIR/student.json" --top 15
 ```
 
 输出按分类（strong → consider → not_recommended → ineligible）+ score 降序。
@@ -164,20 +182,29 @@ Q01（路径偏好）和 Q18（风险态度）测的是**同一构念的两个�
 
 **单一真理源**：所有 question/option 文案 **verbatim** 来自 `references/question_bank.json`，**禁止**自创补充或改字。
 
-**字段映射**：
+**Schema 注意**：`question_bank.json` 顶层是 `{"_meta": ..., "major_categories": ..., "questions": [...]}`，其中 `questions` 是 **list**（每个元素带 `id` 字段如 `"Q01"`），**不是** dict。读取时**必须先建 id 索引**再按 id 取，否则 `qb["questions"]["Q01"]` 会抛 `TypeError: list indices must be integers`：
+
+```python
+import json
+qb = json.load(open("references/question_bank.json", encoding="utf-8"))
+qbank_by_id = {q["id"]: q for q in qb["questions"]}   # 索引建一次复用
+q = qbank_by_id["Q01"]                                 # 然后正常按 id 取
+```
+
+**字段映射**（基于 `qbank_by_id`，Python dict 访问语法）：
 
 | AskUserQuestion 参数 | 数据源 |
 |---|---|
-| `question` | `qbank[id].title + "：" + qbank[id].subtitle`（subtitle 缺失则只用 title）|
-| `header` | `qbank[id].title` 的前 12 字 |
-| 每个 option 的 `label` | `qbank[id].options[i].key + " " + qbank[id].options[i].label`（如 "A 强"）|
-| 每个 option 的 `description` | **多行**：`qbank.description`（含 `\n` 分隔的多个 bullet 子句）+ 换行 + `"（参考：" + notes + "）"` |
+| `question` | `qbank_by_id[id]["title"] + "：" + qbank_by_id[id]["subtitle"]`（subtitle 缺失则只用 title）|
+| `header` | `qbank_by_id[id]["title"]` 的前 12 字 |
+| 每个 option 的 `label` | `qbank_by_id[id]["options"][i]["key"] + " " + qbank_by_id[id]["options"][i]["label"]`（如 "A 强"）|
+| 每个 option 的 `description` | **多行**：`option["description"]`（含 `\n` 分隔的多个 bullet 子句）+ 换行 + `"（参考：" + option["notes"] + "）"` |
 
 **description 多行渲染细节（v3.0 新增）**：
 
-`qbank.description` 现在是**多 bullet 串**（用 `\n` 分隔），原始问卷里每个选项是 2-3 个并列短句。AskUserQuestion 调用时**保留 `\n` 不变** ——AskUserQuestion 渲染器会把每行作为一个 bullet 展示，无需手动加 `•` 前缀。
+每个 option 的 `description` 字段现在是**多 bullet 串**（用 `\n` 分隔），原始问卷里每个选项是 2-3 个并列短句。AskUserQuestion 调用时**保留 `\n` 不变** ——AskUserQuestion 渲染器会把每行作为一个 bullet 展示，无需手动加 `•` 前缀。
 
-最终 description 字段 = `qbank.description + "\n（参考：" + qbank.notes + "）"`
+最终 description 字段 = `option["description"] + "\n（参考：" + option["notes"] + "）"`
 
 **违规警示**：
 
@@ -240,7 +267,7 @@ AskUserQuestion(question=[{
 }
 ```
 
-写到 `$CLAUDE_JOB_DIR/gaokao-adi-input.json` 或临时文件。
+写到 `$SESSION_DIR/gaokao-adi-input.json`。
 
 **如果走了推荐分支（Step 1a/1b）**：再加三个字段：
 
@@ -274,24 +301,30 @@ AskUserQuestion(question=[{
 ```bash
 python -m scripts.run_assessment \
     --input <input_path> \
-    --out-dir <cwd_or_user_dir>
+    --out-dir <SESSION_DIR>
 ```
 
 工作目录要在 `~/.claude/skills/gaokao-adi/` 下跑，否则 Python 找不到 `scripts.*` 模块。建议：
 
 ```bash
 cd ~/.claude/skills/gaokao-adi && \
-  python -m scripts.run_assessment --input /tmp/gaokao-adi-input.json --out-dir /tmp/
+  python -m scripts.run_assessment \
+    --input "$SESSION_DIR/gaokao-adi-input.json" \
+    --out-dir "$SESSION_DIR"
 ```
+
+报告产出文件会落在 `$SESSION_DIR/gaokao-adi-report-<timestamp>.md` 和 `.html`，与 `student.json` / `gaokao-adi-input.json` 同目录，方便后续回看或归档。
 
 ### Step 8: 把 Markdown 报告贴回对话
 
-stdout 是渲染好的 Markdown，直接贴。stderr 给出文件路径，告诉用户：
+stdout 是渲染好的 Markdown，直接贴。stderr 给出文件路径，告诉用户（**用真实 $SESSION_DIR 路径**，不要复制下面占位）：
 
 ```
-报告已保存：
-- Markdown: /tmp/gaokao-adi-report-YYYYMMDD-HHMMSS.md
-- HTML 单页: /tmp/gaokao-adi-report-YYYYMMDD-HHMMSS.html
+报告已保存到本次 session 目录：
+- 目录: ~/.gaokao/<nickname>-<timestamp>/
+- Markdown: ~/.gaokao/<nickname>-<timestamp>/gaokao-adi-report-YYYYMMDD-HHMMSS.md
+- HTML 单页: ~/.gaokao/<nickname>-<timestamp>/gaokao-adi-report-YYYYMMDD-HHMMSS.html
+- 输入快照: ~/.gaokao/<nickname>-<timestamp>/gaokao-adi-input.json（可改答案后重跑）
 
 要不要用浏览器打开 HTML 看可视化（雷达图+柱状图）？
 ```

@@ -201,7 +201,7 @@ def test_soft_filter_layer2_ignores_low_weight_subjects(majors):
 
 
 def test_fit_score_favorite_subject_bonus(majors):
-    """v1.9: favorite_subject 命中 key_subjects 时 fit 加 +0.05/项。"""
+    """v2.0: favorite_subject 命中 key_subjects 时按该 key_subject 权重缩放 bonus。"""
     base_student = StudentProfile(
         province="广东", mode="3+1+2", electives=["物理", "化学", "生物"],
         scores={"语文": 120, "数学": 130, "外语": 120, "物理": 95, "化学": 85, "生物": 88},
@@ -214,9 +214,11 @@ def test_fit_score_favorite_subject_bonus(majors):
     cs = majors["计算机类 / 软件工程"]
     base_fit = fit_score(base_student, cs)
     fav_fit = fit_score(with_fav_student, cs)
-    # 默认 bonus 0.05 一项
-    assert fav_fit == pytest.approx(min(1.0, base_fit + 0.05), abs=1e-6), (
-        f"base={base_fit}, fav={fav_fit}, diff={fav_fit - base_fit}"
+    # v2.0: bonus = 0.05 * 数学权重
+    math_weight = cs["key_subjects"]["数学"]
+    expected = min(1.0, base_fit + 0.05 * math_weight)
+    assert fav_fit == pytest.approx(expected, abs=1e-6), (
+        f"base={base_fit}, fav={fav_fit}, expected={expected}"
     )
 
 
@@ -250,6 +252,62 @@ def test_fit_score_favorite_not_in_key_subjects_no_bonus(majors):
     base_fit = fit_score(base_student, biz)
     fav_fit = fit_score(fav_student, biz)
     assert base_fit == pytest.approx(fav_fit, abs=1e-6), "favorite 不在 key 应无 bonus"
+
+
+# ---------- v2.4 track-mismatch penalty ----------
+
+
+def test_fit_score_track_penalty_demotes_humanities_for_li_track(majors):
+    """v2.4: 理-track 学生对 max_stem_weight < 0.30 的专业要被 0.85 惩罚降档。
+    市场营销 数学=0.25 是触发点；会计学 数学=0.40 不触发；陕西物理类考生预期看到
+    市场营销从 strong 掉到 consider。"""
+    student = StudentProfile(
+        province="陕西", mode="3+1+2", electives=["物理", "化学", "生物"],
+        scores={"语文": 130, "数学": 140, "外语": 130,
+                "物理": 70, "化学": 70, "生物": 64},
+        favorite_subjects=["数学", "语文", "物理", "生物"],
+    )
+    marketing = majors["市场营销"]
+    accounting = majors["会计学"]
+    # 市场营销 max stem (数学) = 0.25 < 0.30 → penalty
+    assert max(w for s, w in marketing["key_subjects"].items()
+               if s in {"数学", "物理", "化学", "生物"}) < 0.30
+    # 会计学 max stem (数学) = 0.40 >= 0.30 → no penalty
+    assert max(w for s, w in accounting["key_subjects"].items()
+               if s in {"数学", "物理", "化学", "生物"}) >= 0.30
+    marketing_fit = fit_score(student, marketing)
+    accounting_fit = fit_score(student, accounting)
+    assert marketing_fit < 0.75, f"市场营销 应从 strong 掉到 consider: {marketing_fit}"
+    assert accounting_fit >= 0.75, f"会计学 应保持 strong: {accounting_fit}"
+
+
+def test_fit_score_track_penalty_skipped_for_3plus3(majors):
+    """v2.4: 3+3 自由选科学生不触发 track 惩罚（无清晰 STEM 信号）。"""
+    student_3p3 = StudentProfile(
+        province="北京", mode="3+3", electives=["物理", "化学", "生物"],
+        scores={"语文": 130, "数学": 140, "外语": 130,
+                "物理": 70, "化学": 70, "生物": 64},
+    )
+    student_li = StudentProfile(
+        province="陕西", mode="3+1+2", electives=["物理", "化学", "生物"],
+        scores=student_3p3.scores,
+    )
+    marketing = majors["市场营销"]
+    # 同样分数同样专业，3+3 不被惩罚、3+1+2 物理被惩罚
+    assert fit_score(student_3p3, marketing) > fit_score(student_li, marketing)
+
+
+def test_fit_score_track_penalty_not_applied_to_stem_major(majors):
+    """v2.4: STEM 专业（CS 数学权重 0.4+）对理科生不触发惩罚。"""
+    student = StudentProfile(
+        province="陕西", mode="3+1+2", electives=["物理", "化学", "生物"],
+        scores={"语文": 130, "数学": 140, "外语": 130,
+                "物理": 95, "化学": 90, "生物": 88},
+    )
+    cs = majors["计算机类 / 软件工程"]
+    fit = fit_score(student, cs)
+    # 应保持 strong（具体值看权重，但必须 >= 0.75）
+    assert fit >= 0.75, f"CS 不该被理科 track 惩罚: {fit}"
 
 
 # ---------- recommend pipeline ----------

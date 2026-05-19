@@ -25,6 +25,8 @@ _DEFAULT_SOFT_FILTER_RELATIVE = {
     "weights_threshold": 0.25,
     "relative_gap": 0.15,
     "favorite_fit_bonus": 0.05,
+    "track_mismatch_penalty": 0.85,
+    "track_mismatch_stem_threshold": 0.30,
 }
 
 
@@ -39,10 +41,61 @@ def _resolve_soft_filter_relative(weights: dict | None = None) -> dict:
                                        _DEFAULT_SOFT_FILTER_RELATIVE["relative_gap"])),
         "favorite_fit_bonus": float(cfg.get("favorite_fit_bonus",
                                              _DEFAULT_SOFT_FILTER_RELATIVE["favorite_fit_bonus"])),
+        "track_mismatch_penalty": float(cfg.get("track_mismatch_penalty",
+                                                 _DEFAULT_SOFT_FILTER_RELATIVE["track_mismatch_penalty"])),
+        "track_mismatch_stem_threshold": float(cfg.get("track_mismatch_stem_threshold",
+                                                        _DEFAULT_SOFT_FILTER_RELATIVE["track_mismatch_stem_threshold"])),
     }
 
 _SUBJECT_MAX = {"语文": 150, "数学": 150, "外语": 150, "理综": 300, "文综": 300}
 _ELECTIVE_MAX = 100
+_STEM_SUBJECTS = frozenset({"数学", "物理", "化学", "生物"})
+
+
+def _infer_student_track(student: "StudentProfile") -> str:
+    """Return '理' / '文' / '' based on student's mode and electives.
+
+    3+1+2: 物理 primary → '理'; 历史 primary → '文'.
+    Traditional: use student.track directly.
+    3+3 (free pick): return '' — no clean STEM/Hum signal.
+    """
+    if student.mode == "traditional":
+        return student.track or ""
+    if student.mode == "3+1+2":
+        if "物理" in student.electives:
+            return "理"
+        if "历史" in student.electives:
+            return "文"
+    return ""
+
+
+def _track_mismatch_multiplier(student: "StudentProfile", admission: dict,
+                                cfg: dict) -> float:
+    """Penalty multiplier for cross-track recommendations.
+
+    For 理 track students (chose 物理 in 3+1+2, or 理 in traditional),
+    a major whose key_subjects contains no STEM subject with weight >=
+    track_mismatch_stem_threshold is treated as humanities-dominant and
+    multiplied by track_mismatch_penalty (default 0.85). Rationale:
+    a 物理-track student picking a major where the core curriculum is
+    pure 语文/外语/历史/政治 is doing a cross-track move; the math fit
+    on 语数外 is real but it shouldn't sit in the same 'strong' bucket
+    as a major that actually uses the student's STEM specialization.
+
+    For 3+3 / unclear track, no penalty is applied — the student's
+    elective set doesn't unambiguously signal a humanities-vs-STEM lean.
+    """
+    track = _infer_student_track(student)
+    if track != "理":
+        return 1.0
+    key_subjects = admission.get("key_subjects", {})
+    max_stem_weight = max(
+        (w for s, w in key_subjects.items() if s in _STEM_SUBJECTS),
+        default=0.0,
+    )
+    if max_stem_weight < cfg["track_mismatch_stem_threshold"]:
+        return cfg["track_mismatch_penalty"]
+    return 1.0
 
 _provinces_cache: dict | None = None
 _admission_cache: dict | None = None
@@ -149,9 +202,21 @@ def fit_score(student: StudentProfile, admission: dict,
               weights: dict | None = None) -> float:
     """FitScore: weighted avg of normalized scores on key_subjects.
 
-    v1.9: every favorite_subject that overlaps with this major's key_subjects
-    adds favorite_fit_bonus (default 0.05). Final score is capped at 1.0.
-    Rationale: align with user's stated affinity even when raw score parity.
+    v2.0:
+      - Missing key_subjects (student didn't take) contribute 0 to numerator
+        but keep their weight in the denominator. Rationale: a 物理 student
+        with no 历史 score should not let a humanities major silently drop
+        历史 from its weighted average — the gap is real and the fit must
+        reflect it.
+      - Favorite bonus is weight-scaled by the matched key_subject's weight.
+        Matching a high-weight core subject (e.g. 数学 in CS, weight 0.4)
+        yields a meaningful boost; matching a trivial 0.05-weight subject
+        contributes almost nothing.
+    v2.4:
+      - Track-mismatch multiplier applied last. For 理-track students,
+        majors with no STEM key_subject above the threshold get a
+        configurable penalty (default 0.85). See
+        _track_mismatch_multiplier for rationale.
     """
     key_subjects = admission.get("key_subjects", {})
     if not key_subjects:
@@ -159,17 +224,18 @@ def fit_score(student: StudentProfile, admission: dict,
     score_sum = 0.0
     weight_sum = 0.0
     for subj, w in key_subjects.items():
+        weight_sum += w
         raw = student.scores.get(subj)
         if raw is None:
             continue
         score_sum += w * _normalize_score(subj, raw)
-        weight_sum += w
     base = 0.5 if weight_sum == 0 else score_sum / weight_sum
     cfg = _resolve_soft_filter_relative(weights)
     bonus = cfg["favorite_fit_bonus"] * sum(
-        1 for fav in student.favorite_subjects if fav in key_subjects
+        key_subjects[fav] for fav in student.favorite_subjects if fav in key_subjects
     )
-    return min(1.0, base + bonus)
+    track_mult = _track_mismatch_multiplier(student, admission, cfg)
+    return min(1.0, (base + bonus) * track_mult)
 
 
 def soft_filter(
@@ -181,11 +247,13 @@ def soft_filter(
     Layer 1 (absolute): soft_thresholds uses raw-score floors (Chinese/Math/
         English 0-150; electives 0-100; combined science/humanities 0-300).
         Any key_subject below threshold yields not_recommended.
-    Layer 2 (v1.9 relative skew): the student's own normalized-score mean
-        minus relative_gap is treated as a skew line; any key_subject with
-        weight >= weights_threshold whose normalized score falls below the
-        line is flagged. This keeps Layer 1-pass students with a weak core
-        subject from slipping through.
+    Layer 2 (v1.9 relative skew + v2.0 missing-subject reject):
+        For each key_subject with weight >= weights_threshold:
+        (a) if the student didn't take it at all (no score), reject —
+            the major depends on a subject outside the student's track.
+        (b) if the student's normalized score on it falls below
+            (self_avg - relative_gap), reject — relative short-board on
+            a core subject of the major.
     Layer 3 (disliked-conflict): when a user-disliked subject is a key
         subject with weight >= weights_threshold, the major is rejected.
     """
@@ -207,7 +275,9 @@ def soft_filter(
                 continue
             student_norm = norm_scores.get(subj)
             if student_norm is None:
-                continue
+                return False, (
+                    f"你未考{subj}（本专业核心权重 {weight:.2f}），方向不匹配"
+                )
             if student_norm < gap_line:
                 return False, (
                     f"{subj} 是你的相对短板（归一化 {student_norm:.2f} 低于"
