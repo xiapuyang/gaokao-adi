@@ -25,7 +25,6 @@ _DEFAULT_SOFT_FILTER_RELATIVE = {
     "weights_threshold": 0.25,
     "relative_gap": 0.15,
     "favorite_fit_bonus": 0.05,
-    "track_mismatch_penalty": 0.85,
     "track_mismatch_stem_threshold": 0.30,
 }
 
@@ -41,8 +40,6 @@ def _resolve_soft_filter_relative(weights: dict | None = None) -> dict:
                                        _DEFAULT_SOFT_FILTER_RELATIVE["relative_gap"])),
         "favorite_fit_bonus": float(cfg.get("favorite_fit_bonus",
                                              _DEFAULT_SOFT_FILTER_RELATIVE["favorite_fit_bonus"])),
-        "track_mismatch_penalty": float(cfg.get("track_mismatch_penalty",
-                                                 _DEFAULT_SOFT_FILTER_RELATIVE["track_mismatch_penalty"])),
         "track_mismatch_stem_threshold": float(cfg.get("track_mismatch_stem_threshold",
                                                         _DEFAULT_SOFT_FILTER_RELATIVE["track_mismatch_stem_threshold"])),
     }
@@ -69,33 +66,40 @@ def _infer_student_track(student: "StudentProfile") -> str:
     return ""
 
 
-def _track_mismatch_multiplier(student: "StudentProfile", admission: dict,
-                                cfg: dict) -> float:
-    """Penalty multiplier for cross-track recommendations.
+def _is_cross_track_humanities(student: "StudentProfile", admission: dict,
+                                cfg: dict) -> tuple[bool, str]:
+    """Hard cross-track check for 理-track students.
 
     For 理 track students (chose 物理 in 3+1+2, or 理 in traditional),
     a major whose key_subjects contains no STEM subject with weight >=
     track_mismatch_stem_threshold is treated as humanities-dominant and
-    multiplied by track_mismatch_penalty (default 0.85). Rationale:
-    a 物理-track student picking a major where the core curriculum is
-    pure 语文/外语/历史/政治 is doing a cross-track move; the math fit
-    on 语数外 is real but it shouldn't sit in the same 'strong' bucket
-    as a major that actually uses the student's STEM specialization.
+    rejected. Structurally identical to the disliked-subject filter
+    (Layer 3): a pure-STEM elective choice is as strong a preference
+    signal against humanities-dominant majors as actively disliking a
+    subject is against majors that lean on it.
 
-    For 3+3 / unclear track, no penalty is applied — the student's
-    elective set doesn't unambiguously signal a humanities-vs-STEM lean.
+    For 3+3 / unclear track, never triggers — the student's elective set
+    doesn't unambiguously signal a humanities-vs-STEM lean.
+
+    v2.5: previously a soft 0.85x score multiplier in fit_score; the
+    multiplier was too gentle (top-band 语数外 students still passed the
+    "consider" 0.55 cutoff). Promoted to hard filter to match the user
+    intent of explicit-elective-choice = explicit-track-preference.
     """
-    track = _infer_student_track(student)
-    if track != "理":
-        return 1.0
+    if _infer_student_track(student) != "理":
+        return False, ""
     key_subjects = admission.get("key_subjects", {})
     max_stem_weight = max(
         (w for s, w in key_subjects.items() if s in _STEM_SUBJECTS),
         default=0.0,
     )
-    if max_stem_weight < cfg["track_mismatch_stem_threshold"]:
-        return cfg["track_mismatch_penalty"]
-    return 1.0
+    threshold = cfg["track_mismatch_stem_threshold"]
+    if max_stem_weight < threshold:
+        return True, (
+            f"你选了物理（理科向），本专业核心科目无 STEM"
+            f"（max STEM 权重 {max_stem_weight:.2f} < {threshold}），方向跨度过大"
+        )
+    return False, ""
 
 _provinces_cache: dict | None = None
 _admission_cache: dict | None = None
@@ -212,11 +216,11 @@ def fit_score(student: StudentProfile, admission: dict,
         Matching a high-weight core subject (e.g. 数学 in CS, weight 0.4)
         yields a meaningful boost; matching a trivial 0.05-weight subject
         contributes almost nothing.
-    v2.4:
-      - Track-mismatch multiplier applied last. For 理-track students,
-        majors with no STEM key_subject above the threshold get a
-        configurable penalty (default 0.85). See
-        _track_mismatch_multiplier for rationale.
+    v2.5:
+      - Track-mismatch is no longer applied here. Cross-track humanities
+        majors for 理-track students are now rejected by soft_filter
+        Layer 4 (categorization-time), so fit_score reports the pure
+        subject-weighted average and the filter handles bucket placement.
     """
     key_subjects = admission.get("key_subjects", {})
     if not key_subjects:
@@ -234,19 +238,25 @@ def fit_score(student: StudentProfile, admission: dict,
     bonus = cfg["favorite_fit_bonus"] * sum(
         key_subjects[fav] for fav in student.favorite_subjects if fav in key_subjects
     )
-    track_mult = _track_mismatch_multiplier(student, admission, cfg)
-    return min(1.0, (base + bonus) * track_mult)
+    return min(1.0, base + bonus)
 
 
 def soft_filter(
     student: StudentProfile, admission: dict,
     weights: dict | None = None,
 ) -> tuple[bool, str]:
-    """Soft filter with three layers: absolute, relative, and disliked-conflict.
+    """Soft filter with four layers: absolute, relative, disliked, cross-track.
 
-    Layer 1 (absolute): soft_thresholds uses raw-score floors (Chinese/Math/
-        English 0-150; electives 0-100; combined science/humanities 0-300).
-        Any key_subject below threshold yields not_recommended.
+    Layer 1 (absolute, v3.5 baseline 60/90 + namesake 80/120):
+        soft_thresholds uses raw-score floors. Default policy: 60 for
+        100-scale electives, 90 for 150-scale 语数外 — interpreted as
+        "passing-grade competence", not "top tier". 7 namesake majors
+        (数学/应用数学/统计学 → 数学:120; 物理:80; 化学:80; 生物科学 → 生物:80;
+        汉语言文学:120 语文; 英语/外语:120 外语) get specialty bumps because
+        their major literally is the subject.
+        Favorite-subject skip: if the subject is in student.favorite_subjects
+        the threshold check is bypassed — stated affinity is a stronger
+        predictor of effort than a 5-point raw-score floor.
     Layer 2 (v1.9 relative skew + v2.0 missing-subject reject):
         For each key_subject with weight >= weights_threshold:
         (a) if the student didn't take it at all (no score), reject —
@@ -256,12 +266,19 @@ def soft_filter(
             a core subject of the major.
     Layer 3 (disliked-conflict): when a user-disliked subject is a key
         subject with weight >= weights_threshold, the major is rejected.
+    Layer 4 (v2.5 cross-track): 理-track students (物理 primary in 3+1+2
+        or 理 in traditional) reject majors whose max STEM weight is below
+        track_mismatch_stem_threshold (default 0.30). Same intent as the
+        Layer 3 hard filter — an explicit elective choice is a strong
+        preference signal against majors that don't use that specialization.
     """
     cfg = _resolve_soft_filter_relative(weights)
 
     for subj, threshold in (admission.get("soft_thresholds") or {}).items():
         raw = student.scores.get(subj)
         if raw is None:
+            continue
+        if subj in student.favorite_subjects:
             continue
         if raw < threshold:
             return False, f"{subj}={raw} 低于建议阈值 {threshold}，不建议本专业"
@@ -289,6 +306,10 @@ def soft_filter(
         weight = (admission.get("key_subjects") or {}).get(disliked, 0)
         if weight >= cfg["weights_threshold"]:
             return False, f"你不喜欢{disliked}（专业核心，权重 {weight:.2f}）"
+
+    is_cross, why = _is_cross_track_humanities(student, admission, cfg)
+    if is_cross:
+        return False, why
     return True, ""
 
 

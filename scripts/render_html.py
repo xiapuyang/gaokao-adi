@@ -18,17 +18,42 @@ from scripts.render_markdown import (
     _load_qbank,
     _option_label,
 )
-from scripts.score_engine import DIMENSION_KEYS as DIM_ORDER
+from scripts.score_engine import CLAMP_MAX, DIMENSION_KEYS as DIM_ORDER
 
 _BASE = Path(__file__).resolve().parent.parent
 TEMPLATE_PATH = _BASE / "assets" / "report_template.html"
 
 GRADE_COLOR = {"低难": "#2da45e", "中等": "#d9b13a", "较难": "#e07a3a", "高难": "#c43c4d"}
 
-_Q_SHORT_LABEL = {
-    "Q08": "学习能力", "Q09": "难度承受", "Q10": "试错能力",
-    "Q11": "调整能力", "Q12": "家庭支持", "Q13": "长期投入意愿",
-    "Q14": "拓展习惯", "Q15": "近期状态",
+# Natural-language phrasing for each (Q-id, answer) pair so HTML readers don't
+# face raw codes like "Q13=A". Markdown report keeps codes; HTML paraphrases.
+_Q_VALUE_PHRASE: dict[str, dict[str, str]] = {
+    "Q01": {"A": "稳定路径偏好", "B": "灵活路径偏好", "C": "冲上限路径偏好"},
+    "Q08": {"A": "学习能力强", "B": "学习能力中上", "C": "学习能力中下", "D": "学习能力偏弱"},
+    "Q09": {"A": "难度承受强", "B": "难度承受中上", "C": "难度承受中下", "D": "难度承受偏弱"},
+    "Q10": {"A": "试错能力强", "B": "试错能力中上", "C": "试错能力中下", "D": "试错能力偏弱"},
+    "Q11": {"A": "调整能力强", "B": "调整能力中上", "C": "调整能力中下", "D": "调整能力偏弱"},
+    "Q12": {"A": "家庭资源明显支持", "B": "家庭资源一定支持",
+            "C": "家庭资源基本支持", "D": "家庭资源几乎无"},
+    "Q13": {"A": "愿意长期高投入", "B": "愿意中长期投入",
+            "C": "只接受中等投入", "D": "不接受长期投入"},
+    "Q14": {"A": "持续主动拓展", "B": "有一定拓展", "C": "偶尔拓展", "D": "基本不拓展"},
+    "Q15": {"A": "近期状态上升", "B": "近期状态稳定", "C": "近期状态下降"},
+    "Q18": {"A": "风险偏避险", "B": "风险偏权衡", "C": "风险偏进取"},
+}
+
+_RESOURCE_PHRASE = {
+    "A": "本专业资源 A（直系/直接资源）",
+    "B": "本专业资源 B（间接资源/人脉）",
+    "C": "本专业资源 C（基本无）",
+}
+
+# Annotation when Q12 / per-major resource contribution has been scaled by
+# resource_sensitivity. Empty string = default sensitivity, no annotation.
+_SENSITIVITY_ANNOTATION = {
+    "low": "本专业资源敏感度=低，效果打折",
+    "high": "本专业资源敏感度=高，效果放大",
+    "decisive": "本专业资源敏感度=决定性，效果显著放大",
 }
 
 _WHEN_PRIORITY_RULES = {
@@ -70,17 +95,13 @@ def _contributor_li(c: dict, css_class: str, prefix: str, pct_fmt: str) -> str:
     pct = c["delta"] * 100
     dim_label = DIMENSION_LABELS.get(c.get("dimension", ""), c.get("dimension", "?"))
     pct_str = pct_fmt.format(pct=pct)
-    if c["source"] == "ai_impact":
-        tag = f"AI 影响（{c.get('impact_level', '?')}×{c.get('ability_level', '?')}）"
-    elif c["source"] == "resource":
-        tag = f"专业资源={c.get('answer', '?')}"
-    elif c["source"] == "Q12":
-        tag = f"Q12 家庭支持={c.get('answer', '?')}"
-    elif c["source"] == "Q15":
-        tag = f"Q15 状态={c.get('answer', '?')}"
-    else:
-        tag = f"{c['source']}={c.get('answer', '?')}"
-    return f'<li class="{css_class}">{prefix}：{_esc(tag)} 把「{_esc(dim_label)}」{pct_str}</li>'
+    tag = _contributor_tag(c)
+    annotation = _sensitivity_note(c)
+    suffix = f"（{annotation}）" if annotation else ""
+    return (
+        f'<li class="{css_class}">{prefix}：{_esc(tag)} → '
+        f'「{_esc(dim_label)}」{pct_str}{_esc(suffix)}</li>'
+    )
 
 
 def _overview_chips(meta: dict, qbank: dict) -> str:
@@ -149,25 +170,61 @@ def _radar_cells_html(result: dict) -> str:
 
 
 def _contributor_tag(c: dict) -> str:
-    """Build a human-readable tag for one contributor entry."""
+    """Build a natural-language phrase for one contributor entry.
+
+    Returns a paraphrase like "愿意长期高投入" rather than the raw "Q13=A"
+    code, so the HTML report reads as plain prose to a non-technical user.
+    """
     src = c["source"]
     ans = c.get("answer", "?")
     if src == "ai_impact":
-        return f"AI 影响（{c.get('impact_level', '?')}×{c.get('ability_level', '?')}）"
+        return f"AI 影响（{c.get('impact_level', '?')}×能力 {c.get('ability_level', '?')}）"
     if src == "resource":
-        return f"专业资源={ans}"
-    if src in _Q_SHORT_LABEL:
-        return f"{src} {_Q_SHORT_LABEL[src]}={ans}"
+        return _RESOURCE_PHRASE.get(ans, f"本专业资源={ans}")
+    if src in _Q_VALUE_PHRASE and ans in _Q_VALUE_PHRASE[src]:
+        return _Q_VALUE_PHRASE[src][ans]
     return f"{src}={ans}"
 
 
-def _phase_a_questionnaire_impact(d: dict) -> str:
-    """Phase A: trace 4 维度 contributors back to specific Q answers.
+def _sensitivity_note(c: dict) -> str:
+    """Return a short annotation when this contributor was scaled by
+    per-major resource_sensitivity (only Q12 and resource carry the factor).
 
-    Pick top 3 positive (lifts) and top 2 negative (drags) by abs(delta),
-    each shown as a colored bullet with Q-id + 维度 + percentage.
+    Returns empty string for default sensitivity or non-applicable sources.
     """
-    flattened = []
+    factor = c.get("sensitivity_factor")
+    if factor is None or abs(factor - 1.0) < 0.001:
+        return ""
+    if factor < 1.0:
+        return f"本专业资源敏感度=低，效果 ×{factor:.1f}"
+    return f"本专业资源敏感度=高，效果 ×{factor:.1f}"
+
+
+def _impact_li(c: dict, css_class: str, prefix_icon: str) -> str:
+    """Render one contributor as an impact bullet with sensitivity annotation."""
+    dim_label = DIMENSION_LABELS[c["dimension"]]
+    pct = c["delta"] * 100
+    sign = "+" if c["delta"] > 0 else ""
+    tag = _contributor_tag(c)
+    note = _sensitivity_note(c)
+    suffix = f"（{note}）" if note else ""
+    return (
+        f'<li class="{css_class}">{prefix_icon} {_esc(tag)} → '
+        f'「{_esc(dim_label)}」{sign}{pct:.0f}%{_esc(suffix)}</li>'
+    )
+
+
+def _phase_a_questionnaire_impact(d: dict) -> str:
+    """Phase A: trace 4 维度 contributors back to specific user choices.
+
+    Picks top 3 lifts and top 2 drags by abs(delta), force-includes the
+    per-major resource contributor when present (so an A-resource pick is
+    never silently missing from the bullet list — addresses the case where
+    the cap absorbed its effect but the user still wants to see it called
+    out). Also appends a 'absorbed by cap' mini-section for positive
+    contributors whose dimension hit the 5.0 ceiling.
+    """
+    flattened: list[dict] = []
     for dim, dd in d["dimensions"].items():
         for c in dd.get("contributors", []):
             if c.get("delta", 0) == 0:
@@ -179,22 +236,56 @@ def _phase_a_questionnaire_impact(d: dict) -> str:
                     key=lambda c: -c["delta"])[:3]
     drags = sorted([c for c in flattened if c["delta"] < 0],
                     key=lambda c: c["delta"])[:2]
-    items = []
-    for c in lifts:
-        items.append(
-            f'<li class="lift">✅ {_esc(_contributor_tag(c))} → '
-            f'「{_esc(DIMENSION_LABELS[c["dimension"]])}」'
-            f'+{c["delta"]*100:.0f}%</li>'
-        )
-    for c in drags:
-        items.append(
-            f'<li class="drag">⚠️ {_esc(_contributor_tag(c))} → '
-            f'「{_esc(DIMENSION_LABELS[c["dimension"]])}」'
-            f'{c["delta"]*100:.0f}%</li>'
-        )
+    shown_keys = {(c["source"], c["dimension"]) for c in lifts + drags}
+    # Force-include per-major resource positive contribution if not already shown.
+    for c in flattened:
+        key = (c["source"], c["dimension"])
+        if c["source"] == "resource" and c["delta"] > 0 and key not in shown_keys:
+            lifts.append(c)
+            shown_keys.add(key)
+    items = [_impact_li(c, "lift", "✅") for c in lifts]
+    items += [_impact_li(c, "drag", "⚠️") for c in drags]
+    absorbed = _absorbed_by_cap(d, shown_keys)
     return (
         '<div class="impact-block"><strong>你的画像如何影响这个分</strong>'
-        f'<ul>{"".join(items)}</ul></div>'
+        f'<ul>{"".join(items)}</ul>{absorbed}</div>'
+    )
+
+
+def _absorbed_by_cap(d: dict, shown_keys: set) -> str:
+    """List positive contributors absorbed by the 5.0 dimension cap.
+
+    A dimension whose `base × multiplier` exceeds CLAMP_MAX has had at
+    least part of its boost truncated. Show the contributors that landed
+    on such dimensions but were already shown — purely informational, so
+    the reader sees that an A-resource (or any boost) is registered in
+    the multiplier even when the adjusted column reads 5.00.
+    """
+    items: list[str] = []
+    for dim, dd in d["dimensions"].items():
+        theoretical = dd["base"] * dd["multiplier"]
+        if theoretical <= CLAMP_MAX + 0.01:
+            continue
+        overflow = theoretical - CLAMP_MAX
+        for c in dd.get("contributors", []):
+            if c.get("delta", 0) <= 0.02:
+                continue
+            tag = _contributor_tag({**c, "dimension": dim})
+            note = _sensitivity_note(c)
+            note_suffix = f"，{note}" if note else ""
+            items.append(
+                f"<li class=\"absorbed\">▫️ {_esc(tag)} 给「{_esc(DIMENSION_LABELS[dim])}」"
+                f"+{c['delta']*100:.0f}%{_esc(note_suffix)}"
+                f"（该维度 base×系数={theoretical:.2f} 已超 5.00 上限，"
+                f"多余 {overflow:.2f} 被截断）</li>"
+            )
+    if not items:
+        return ""
+    return (
+        '<div class="absorbed-block">'
+        '<small><strong>未显示项（被 5.0 上限截断）：</strong></small>'
+        f'<ul class="absorbed-list">{"".join(items)}</ul>'
+        '</div>'
     )
 
 
@@ -302,6 +393,36 @@ def _load_admission_data() -> dict:
         return {"majors": {}}
 
 
+def _admission_breakdown_html(d: dict) -> str:
+    """Render the ADI → admission_blend → final formula line.
+
+    Makes the otherwise-invisible admission_score discount explicit so a
+    reader can reconcile cases like adjusted-dims=5×5×5×5 yet total≠625.
+    Shows the actual 4-dim product (which may differ from 625 when any
+    adjusted < 5) on the left side, then the blend factor, then final.
+    """
+    adi_raw = d.get("adi_total")
+    factor = d.get("admission_blend_factor")
+    final = d.get("total")
+    adjusted = [d["dimensions"][dim]["adjusted"] for dim in DIM_ORDER]
+    product_text = " × ".join(f"{x:.2f}" for x in adjusted)
+    if factor is None or abs(factor - 1.0) < 0.001:
+        return (
+            f'<p class="admission-line">'
+            f'<strong>原始 ADI</strong> = {product_text} = <strong>{adi_raw}</strong>'
+            ' <span class="muted">（无招生匹配折扣）</span></p>'
+        )
+    adm = d.get("admission_score")
+    adm_pct = f"{adm:.0%}" if adm is not None else "—"
+    return (
+        f'<p class="admission-line">'
+        f'<strong>原始 ADI</strong> = {product_text} = <strong>{adi_raw}</strong>'
+        f' → × <span title="你的成绩与本专业 key_subjects 的匹配度，'
+        f'公式：0.7 + 0.3 × admission_score">招生匹配度 {adm_pct}'
+        f'（系数 {factor:.2f}）</span> → <strong>最终 {final}</strong></p>'
+    )
+
+
 def _major_cards_html(result: dict) -> str:
     """Render the per-major detailed analysis cards with Phase A/B/C subsections."""
     student_context = result.get("student_context")
@@ -319,9 +440,9 @@ def _major_cards_html(result: dict) -> str:
             )
         notes = []
         if d.get("top_lift"):
-            notes.append(_contributor_li(d["top_lift"], "lift", "🚀 主要拉抬", "抬升 +{pct:.0f}%"))
+            notes.append(_contributor_li(d["top_lift"], "lift", "🚀 主要拉抬", "+{pct:.0f}%"))
         if d.get("top_drag"):
-            notes.append(_contributor_li(d["top_drag"], "drag", "🪨 主要拖累", "压低 {pct:.0f}%"))
+            notes.append(_contributor_li(d["top_drag"], "drag", "🪨 主要拖累", "{pct:.0f}%"))
         notes.append(
             f"<li>⚠️ 瓶颈维度：<strong>{_esc(DIMENSION_LABELS[d['bottleneck']])}</strong>"
             "（最低维度锁住总分上限）</li>"
@@ -335,6 +456,7 @@ def _major_cards_html(result: dict) -> str:
             f'<span class="grade-{d["grade"]}">{d["grade"]}</span></h3>'
             '<table><thead><tr><th>维度</th><th>基础</th>'
             f"<th>个人系数</th><th>调整后</th></tr></thead><tbody>{''.join(rows)}</tbody></table>"
+            f"{_admission_breakdown_html(d)}"
             f"<ul>{''.join(notes)}</ul>"
             f"{_phase_a_questionnaire_impact(d)}"
             f"{_phase_b_subject_match(name, student_context, admission_data)}"

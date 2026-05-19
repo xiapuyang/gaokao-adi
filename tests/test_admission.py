@@ -131,6 +131,39 @@ def test_soft_filter_rejects_weak_key_subject(majors):
     assert "化学" in reason
 
 
+def test_soft_filter_l1_skipped_for_favorite_subject():
+    """v3.5: 学生喜欢某科目时，L1 不再卡该科目的阈值。
+
+    用合成 admission dict 隔离 L1 行为（key_subjects 中 物理 weight < 0.25
+    避免 L2 相对短板拦截，max_stem_w ≥ 0.30 避免 L4 cross-track）。"""
+    student_no_fav = StudentProfile(
+        province="陕西", mode="3+1+2", electives=["物理", "化学", "生物"],
+        scores={"语文": 120, "数学": 130, "外语": 120,
+                "物理": 55, "化学": 75, "生物": 75},
+    )
+    student_with_fav = StudentProfile(
+        province="陕西", mode="3+1+2", electives=["物理", "化学", "生物"],
+        scores={"语文": 120, "数学": 130, "外语": 120,
+                "物理": 55, "化学": 75, "生物": 75},
+        favorite_subjects=["物理"],
+    )
+    synth_major = {
+        "required_primary": "物理",
+        "required_electives_all": [],
+        "required_electives_any": [],
+        "traditional_track": "理",
+        "key_subjects": {"数学": 0.40, "外语": 0.20,
+                         "语文": 0.20, "物理": 0.10, "化学": 0.10},
+        "soft_thresholds": {"物理": 60},
+    }
+    ok_no_fav, why_no_fav = soft_filter(student_no_fav, synth_major)
+    assert ok_no_fav is False, "L1 应拦 物理=55<60"
+    assert "物理" in why_no_fav
+
+    ok_fav, why_fav = soft_filter(student_with_fav, synth_major)
+    assert ok_fav is True, f"喜欢物理时 L1 应跳过该科目阈值，被拒原因: {why_fav}"
+
+
 def test_soft_filter_disliked_conflict(majors):
     """讨厌化学但选了 CS（化学权重 0.20）→ 应该 OK（< 0.25 阈值）。
     讨厌化学但报临床（化学权重 0.25）→ 应被拒。"""
@@ -181,9 +214,10 @@ def test_soft_filter_layer2_does_not_block_balanced_student(majors):
 def test_soft_filter_layer2_ignores_low_weight_subjects(majors):
     """v1.9 L2: 学生某科是偏科，但该科在专业里权重 < weights_threshold → 不拦。
 
-    数学偏科 + 选汉语言文学（数学权重 0）→ L2 不查数学。"""
+    数学偏科 + 选汉语言文学（数学权重 < 0.25）→ L2 不查数学。
+    用 3+3 模式避免触发 v2.5 L4 cross-track（3+3 无明确 track 信号）。"""
     student = StudentProfile(
-        province="广东", mode="3+1+2", electives=["物理", "化学", "生物"],
+        province="北京", mode="3+3", electives=["物理", "化学", "生物"],
         # 数学偏科（92/150=0.613）但是汉语言文学 key_subjects 不含数学
         scores={"语文": 145, "数学": 92, "外语": 140,
                 "物理": 88, "化学": 92, "生物": 90,
@@ -197,6 +231,7 @@ def test_soft_filter_layer2_ignores_low_weight_subjects(majors):
     # 数学偏科但权重不达阈值 → L2 不动作
     # 语文 0.967 ≫ avg → L2 不拦语文
     # L1 语文≥110(145✓) → L1 过
+    # L4 不触发（3+3 无 track 信号）
     assert ok is True
 
 
@@ -254,13 +289,13 @@ def test_fit_score_favorite_not_in_key_subjects_no_bonus(majors):
     assert base_fit == pytest.approx(fav_fit, abs=1e-6), "favorite 不在 key 应无 bonus"
 
 
-# ---------- v2.4 track-mismatch penalty ----------
+# ---------- v2.5 cross-track hard filter (was v2.4 soft penalty) ----------
 
 
-def test_fit_score_track_penalty_demotes_humanities_for_li_track(majors):
-    """v2.4: 理-track 学生对 max_stem_weight < 0.30 的专业要被 0.85 惩罚降档。
-    市场营销 数学=0.25 是触发点；会计学 数学=0.40 不触发；陕西物理类考生预期看到
-    市场营销从 strong 掉到 consider。"""
+def test_soft_filter_rejects_cross_track_humanities_for_li_track(majors):
+    """v2.5: 理-track 学生 + max_stem_weight < 0.30 的专业 → soft_filter 直接拒绝。
+    市场营销 数学=0.25 是触发点；会计学 数学=0.40 不触发；用户实际反馈的陕西物化生
+    考生不应再看到 英语/新传/社会工作 类专业出现在 consider 档。"""
     student = StudentProfile(
         province="陕西", mode="3+1+2", electives=["物理", "化学", "生物"],
         scores={"语文": 130, "数学": 140, "外语": 130,
@@ -269,20 +304,19 @@ def test_fit_score_track_penalty_demotes_humanities_for_li_track(majors):
     )
     marketing = majors["市场营销"]
     accounting = majors["会计学"]
-    # 市场营销 max stem (数学) = 0.25 < 0.30 → penalty
     assert max(w for s, w in marketing["key_subjects"].items()
                if s in {"数学", "物理", "化学", "生物"}) < 0.30
-    # 会计学 max stem (数学) = 0.40 >= 0.30 → no penalty
     assert max(w for s, w in accounting["key_subjects"].items()
                if s in {"数学", "物理", "化学", "生物"}) >= 0.30
-    marketing_fit = fit_score(student, marketing)
-    accounting_fit = fit_score(student, accounting)
-    assert marketing_fit < 0.75, f"市场营销 应从 strong 掉到 consider: {marketing_fit}"
-    assert accounting_fit >= 0.75, f"会计学 应保持 strong: {accounting_fit}"
+    rec_marketing, why_marketing = soft_filter(student, marketing)
+    rec_accounting, _ = soft_filter(student, accounting)
+    assert rec_marketing is False, f"市场营销 应被 cross-track 硬过滤: {why_marketing}"
+    assert "STEM" in why_marketing or "跨度" in why_marketing
+    assert rec_accounting is True, "会计学 数学=0.40 应保留"
 
 
-def test_fit_score_track_penalty_skipped_for_3plus3(majors):
-    """v2.4: 3+3 自由选科学生不触发 track 惩罚（无清晰 STEM 信号）。"""
+def test_soft_filter_cross_track_skipped_for_3plus3(majors):
+    """v2.5: 3+3 自由选科学生不触发 cross-track 过滤（无清晰 STEM 信号）。"""
     student_3p3 = StudentProfile(
         province="北京", mode="3+3", electives=["物理", "化学", "生物"],
         scores={"语文": 130, "数学": 140, "外语": 130,
@@ -293,21 +327,43 @@ def test_fit_score_track_penalty_skipped_for_3plus3(majors):
         scores=student_3p3.scores,
     )
     marketing = majors["市场营销"]
-    # 同样分数同样专业，3+3 不被惩罚、3+1+2 物理被惩罚
-    assert fit_score(student_3p3, marketing) > fit_score(student_li, marketing)
+    rec_3p3, _ = soft_filter(student_3p3, marketing)
+    rec_li, _ = soft_filter(student_li, marketing)
+    assert rec_3p3 is True, "3+3 不应触发 cross-track 过滤"
+    assert rec_li is False, "3+1+2 物理 + 市场营销 应被过滤"
 
 
-def test_fit_score_track_penalty_not_applied_to_stem_major(majors):
-    """v2.4: STEM 专业（CS 数学权重 0.4+）对理科生不触发惩罚。"""
+def test_soft_filter_passes_stem_major_for_li_track(majors):
+    """v2.5: STEM 专业（CS 数学权重 0.4+）对理科生 soft_filter 通过。"""
     student = StudentProfile(
         province="陕西", mode="3+1+2", electives=["物理", "化学", "生物"],
         scores={"语文": 130, "数学": 140, "外语": 130,
                 "物理": 95, "化学": 90, "生物": 88},
     )
     cs = majors["计算机类 / 软件工程"]
-    fit = fit_score(student, cs)
-    # 应保持 strong（具体值看权重，但必须 >= 0.75）
-    assert fit >= 0.75, f"CS 不该被理科 track 惩罚: {fit}"
+    recommended, _ = soft_filter(student, cs)
+    assert recommended is True, "CS 数学权重 ≥ 0.30，不该被 cross-track 过滤"
+
+
+def test_recommend_drops_humanities_for_li_track_student(majors):
+    """v2.5 e2e: 用户实际报告的 陕西 物化生 130/140/130/70/70/64 + 不喜欢化学
+    场景下，英语/外语 / 新闻传播 / 社会工作 / 设计类 都必须落在 not_recommended，
+    不能再以 consider 档位干扰用户视线。"""
+    student = StudentProfile(
+        province="陕西", mode="3+1+2", electives=["物理", "化学", "生物"],
+        scores={"语文": 130, "数学": 140, "外语": 130,
+                "物理": 70, "化学": 70, "生物": 64},
+        favorite_subjects=["数学", "语文", "物理", "生物"],
+        disliked_subjects=["化学"],
+    )
+    recs = recommend(student)
+    by_name = {r["name"]: r for r in recs}
+    for humanities in ("英语/外语", "新闻传播 / 传播学", "社会工作",
+                        "设计类（视觉传达/产品设计等）"):
+        assert humanities in by_name, f"{humanities} missing from recommendations"
+        assert by_name[humanities]["category"] != "consider", (
+            f"{humanities} 必须不在 consider 档，实际: {by_name[humanities]['category']}"
+        )
 
 
 # ---------- recommend pipeline ----------

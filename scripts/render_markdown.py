@@ -245,10 +245,17 @@ def _generate_advice(result: dict) -> list[str]:
         )
     elif meta.get("school_vs_major") == "B":
         top = result["algorithm_rank"][0]
-        out.append(
-            f"- 你偏好专业优先：算法第一名「{top}」是首选；如果它是现场推断的，"
-            "建议先在词典里找相近方向做锚点参照。"
-        )
+        inferred = set(meta.get("session_inferred_majors") or [])
+        if top in inferred:
+            out.append(
+                f"- 你偏好专业优先：算法第一名「{top}」是首选，"
+                "但该专业为本次现场推断（非词典专业），"
+                "建议先在词典里找相近方向做锚点参照、对照分数稳健性。"
+            )
+        else:
+            out.append(
+                f"- 你偏好专业优先：算法第一名「{top}」是首选。"
+            )
     if meta.get("city_emphasis") in ("C", "D"):
         out.append("- 你重视城市平台：低难/中等专业向一线/新一线倾斜；高难专业更要靠近行业聚集地。")
     if not out:
