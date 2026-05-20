@@ -196,8 +196,16 @@ _APPETITE_TIE_BREAK_NARRATIVE = {
 }
 
 
-def _appetite_advice(meta: dict, result: dict) -> list[str]:
-    """Advice lines driven by risk_appetite — sort-tie hint + contradiction prompt."""
+def _appetite_advice(meta: dict) -> list[str]:
+    """Advice lines driven by risk_appetite — only claim a tie-break effect when real.
+
+    The tie-break weights are computed for every non-contradiction appetite, but they
+    change the ranking only when two majors are close enough in total to share a band
+    *and* differ in dimension shape. Claiming "决出先后" unconditionally overstates the
+    appetite's role, so this branches on ``meta['appetite_changed_order']``: name the
+    promoted/demoted pair when appetite actually reordered, otherwise state plainly that
+    it was recorded but did not move any rank.
+    """
     out: list[str] = []
     appetite = meta.get("risk_appetite", "neutral")
     if meta.get("appetite_contradiction"):
@@ -212,11 +220,19 @@ def _appetite_advice(meta: dict, result: dict) -> list[str]:
     narrative = _APPETITE_TIE_BREAK_NARRATIVE.get(appetite, "")
     if not narrative:
         return out
-    top = result["algorithm_rank"][0]
-    out.append(
-        f"- 基于你的{APPETITE_LABELS[appetite]}倾向，同分时算法按「{narrative}」"
-        f"加权决出先后。算法第一名「{top}」就是这套权重下的最匹配选项。"
-    )
+    label = APPETITE_LABELS[appetite]
+    if meta.get("appetite_changed_order"):
+        promoted = meta.get("appetite_promoted")
+        demoted = meta.get("appetite_demoted")
+        out.append(
+            f"- 你的{label}倾向起了作用：「{promoted}」与「{demoted}」总分接近，"
+            f"算法按「{narrative}」加权，把「{promoted}」排到了「{demoted}」之前。"
+        )
+    else:
+        out.append(
+            f"- 你的{label}倾向已记录，但本次没有总分接近、需要靠它来排序的专业；"
+            "排名由客观总分直接决定，风险倾向未改变名次。"
+        )
     return out
 
 
@@ -237,7 +253,7 @@ def _generate_advice(result: dict) -> list[str]:
             f"- 你的偏好与可走通性高度一致，「{result['subjective_rank'][0]}」"
             "也是算法第一名，可信度较高。"
         )
-    out.extend(_appetite_advice(meta, result))
+    out.extend(_appetite_advice(meta))
     if meta.get("school_vs_major") == "A":
         out.append(
             "- 你偏好学校优先：低难/中等专业可以放宽专业选择挑学校档次；"

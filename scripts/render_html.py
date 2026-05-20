@@ -417,9 +417,10 @@ def _admission_breakdown_html(d: dict) -> str:
     return (
         f'<p class="admission-line">'
         f'<strong>原始 ADI</strong> = {product_text} = <strong>{adi_raw}</strong>'
-        f' → × <span title="你的成绩与本专业 key_subjects 的匹配度，'
-        f'公式：0.7 + 0.3 × admission_score">招生匹配度 {adm_pct}'
-        f'（系数 {factor:.2f}）</span> → <strong>最终 {final}</strong></p>'
+        f' → × 招生匹配度 {adm_pct}（系数 {factor:.2f}）'
+        f' → <strong>最终 {final}</strong>'
+        f'<br><span class="muted">系数 = 0.7 + 0.3 × 招生匹配度；'
+        f'匹配度 = 你的成绩与本专业 key_subjects 的契合度</span></p>'
     )
 
 

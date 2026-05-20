@@ -104,7 +104,13 @@ def test_all_dimensions_clamped(case_b):
 
 
 def test_personality_cannot_erase_baseline_lock():
-    """全 A 个人素质 + 资源 A 时，法学/临床/纯艺术仍走不通。这是核心保险丝。"""
+    """全 A 个人素质 + 资源 A 时，法学/临床/纯艺术仍走不通。这是核心保险丝。
+
+    v3.16：资源扩展到全 4 维度后，decisive-sensitivity 专业在「家庭+行业资源全 A」
+    下被合理抬高（艺术 ~40→55、法学 ~53→87），但 baseline lock 仍成立——三者都
+    远低于中等档(150)，临床(decisive + 最低 bases)仍锁在高难(<50)。阈值从 <50 放宽
+    到艺术 <100 反映 #5「资源对 decisive 专业影响最大」的有意设计，而非穿透天花板。
+    """
     extreme = {
         "majors": [
             {"rank": 1, "name": "法学", "resource": "A"},
@@ -118,9 +124,10 @@ def test_personality_cannot_erase_baseline_lock():
         },
     }
     result = compute_all(extreme)
+    # 核心不变量：即使全 A + 资源全 A，三者都进不了中等档（< 150）
     assert result["majors"]["法学"]["total"] < 200
-    assert result["majors"]["临床医学"]["total"] < 50
-    assert result["majors"]["艺术类（美术/音乐/表演）"]["total"] < 50
+    assert result["majors"]["临床医学"]["total"] < 50  # decisive + 最低 bases，仍锁高难
+    assert result["majors"]["艺术类（美术/音乐/表演）"]["total"] < 100
 
 
 def test_subjective_rank_preserves_input_order(case_a):
@@ -129,9 +136,72 @@ def test_subjective_rank_preserves_input_order(case_a):
 
 
 def test_algorithm_rank_is_descending_by_total(case_a):
+    # case_a 三专业 total 相距远（不同 band），故仍严格降序；
+    # 同 band 内 appetite 可重排，见 test_appetite_reorders_within_band_*。
     result = compute_all(case_a)
     totals = [result["majors"][m]["total"] for m in result["algorithm_rank"]]
     assert totals == sorted(totals, reverse=True)
+
+
+def test_band_index_groups_close_totals():
+    """v3.16：相对差 ≤ pct 的 total 落在同一对数 band；明显不同的进不同 band。"""
+    from scripts.score_engine import _band_index
+    assert _band_index(100, 0.05) == _band_index(103, 0.05)  # 3% 内 → 同 band
+    assert _band_index(100, 0.05) != _band_index(130, 0.05)  # 30% → 不同 band
+
+
+def test_appetite_reorders_within_band_but_not_across(case_a):
+    """v3.16 ε-band 核心行为：同 band 内按 personal_fit 重排，跨 band 仍由 total 主导。
+
+    用纯函数 _appetite_sort_key 锁住语义，避免依赖具体 baseline 数值。
+    """
+    from scripts.score_engine import _appetite_sort_key
+    hi_total_low_fit = {"total": 103.0, "personal_fit": 2.0}
+    lo_total_hi_fit = {"total": 100.0, "personal_fit": 4.0}
+    within = sorted(
+        [hi_total_low_fit, lo_total_hi_fit],
+        key=lambda m: _appetite_sort_key(m, 0.05),
+    )
+    assert within[0] is lo_total_hi_fit  # 同 band：高 personal_fit 胜出
+
+    far_high_total = {"total": 200.0, "personal_fit": 0.0}
+    near_high_fit = {"total": 100.0, "personal_fit": 5.0}
+    across = sorted(
+        [near_high_fit, far_high_total],
+        key=lambda m: _appetite_sort_key(m, 0.05),
+    )
+    assert across[0] is far_high_total  # 跨 band：高 total 胜出，无视 personal_fit
+
+
+def test_appetite_effect_no_op_when_order_matches_objective():
+    """同 band 两专业但最终序与客观序一致 → appetite 没起作用，不点名。"""
+    from scripts.score_engine import _appetite_effect
+    majors = {"A": {"total": 625.0}, "B": {"total": 625.0}, "C": {"total": 180.0}}
+    changed, promoted, demoted = _appetite_effect(majors, ["A", "B", "C"], 0.05)
+    assert changed is False
+    assert promoted is None and demoted is None
+
+
+def test_appetite_effect_detects_reorder_and_names_pair():
+    """同 band 两专业被 appetite 换位 → 返回被顶上去/被压下去的具体专业。"""
+    from scripts.score_engine import _appetite_effect
+    # 输入序 [X, Y]（同 total → 同 band），但最终 algorithm_rank 把 Y 排到前。
+    majors = {"X": {"total": 225.0}, "Y": {"total": 225.0}}
+    changed, promoted, demoted = _appetite_effect(majors, ["Y", "X"], 0.05)
+    assert changed is True
+    assert promoted == "Y"  # appetite 把 Y 顶上去
+    assert demoted == "X"   # 越过了 X
+
+
+def test_meta_exposes_appetite_effect_flags(case_a):
+    """compute_all 的 meta 必须带 appetite 是否真正改变排名的标记。"""
+    result = compute_all(case_a)
+    meta = result["meta"]
+    assert isinstance(meta["appetite_changed_order"], bool)
+    # case_a 三专业 total 相距远（不同 band），appetite 无从重排。
+    assert meta["appetite_changed_order"] is False
+    assert meta["appetite_promoted"] is None
+    assert meta["appetite_demoted"] is None
 
 
 # ---------- Kendall τ ----------

@@ -5,6 +5,222 @@
 > 本实现的目标是**保证分档结论一致**（考生 A 经济学/英语进低难、法学不进；考生 B 三项全高难），
 > 而不是数字精确对齐。
 
+## 零、最终分数构成（公式总览）
+
+> 这一节是整个文档的入口：一图看清"最终 ADI 分数是怎么从输入算到输出的"。
+> 后续 1-10 章是各组件的 deep-dive。
+
+### 0.1 一句话总结
+
+**最终 = (4 个维度乘积) × (招生匹配折扣)**，理论范围 `[0.5, 625]`（v3.15：floor 0.7→0.5），越高代表"这条专业路径你越走得通"。
+
+### 0.2 两条独立主链
+
+```
+┌─────────────────── 主链 A：素质问卷 → ADI_raw ─────────────────┐
+│                                                                │
+│  Q01, Q08-Q18 选项                                             │
+│         ↓                                                      │
+│  trait_to_dim  ×  AI 极化(reach/paths)  ×  resource 等级(recover)│
+│         ↓                                                      │
+│  每维度: adjusted = clamp(base × multiplier, 1, 5)             │
+│         ↓                                                      │
+│  ADI_raw = ∏ adjusted_dim  ∈  [1, 625]                         │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+
+┌────────────── 主链 B：高考分数（可选）→ blend_factor ───────────┐
+│                                                                │
+│  各科原始分                                                    │
+│         ↓                                                      │
+│  norm_i = clip(原始_i / 满分_i, 0, 1)                          │
+│         ↓                                                      │
+│  FitScore = Σ(w_i × norm_i) / Σ(w_i)  +  favorite_bonus        │
+│         ↓                                                      │
+│  admission_score = min(1, FitScore × track_mult)               │
+│         ↓                                                      │
+│  blend_factor = 0.5 + 0.5 × admission_score  ∈  [0.5, 1.0]    │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+
+         ↓ 合流
+
+最终 = ADI_raw × blend_factor          # 没接成绩时 blend_factor = 1
+```
+
+### 0.3 端到端公式（紧凑版）
+
+```
+最终 = clamp(base_p × mult_p, 1, 5)         # paths   路径广度
+     × clamp(base_r × mult_r, 1, 5)         # reach   可达性
+     × clamp(base_c × mult_c, 1, 5)         # correct 纠偏能力
+     × clamp(base_v × mult_v, 1, 5)         # recover 兜底空间
+     × (0.5 + 0.5 × admission_score)        # 招生折扣，无成绩时省略（v3.15 floor 0.5）
+```
+
+其中：
+
+- `base_p`/`base_r`/`base_c`/`base_v` = 4 个维度的基础分（专业固有 1-5），来自 `baseline_adi.json[major].dimensions`
+- `mult_p`/`mult_r`/`mult_c`/`mult_v` = 4 个维度的个人系数，由问卷答案 + AI 极化 + Resource 等级**连乘**得出（详见 §0.4）
+- `admission_score = min(1, (FitScore + favorite_bonus) × track_mult)`
+- `FitScore = Σ(w_i × norm_i) / Σ(w_i)`
+  - `w_i` = 该专业 `key_subjects` 字典里第 i 科的权重（如 CS 的 `{数学: 0.4, 物理: 0.3, ...}`）
+  - `norm_i = clamp(原始分_i / 满分_i, 0, 1)` —— 归一化分数
+- `favorite_bonus = 0.05 × Σ(w_fav)`，对每个**既在 favorite_subjects 又在 key_subjects** 的科目，加 `0.05 × 它的权重`
+- `track_mult = 0.85` 当 3+1+2 物理-轨学生申请无 STEM 核心科目的专业，否则 `1.0`
+- 各科满分：语/数/外 = 150；理综/文综 = 300；其他选考（物/化/生/史/地/政）= 100
+- `Σ` 是求和符号，`clamp` 含义见 §四
+- ⚠️ blend 是**乘**在 ADI 乘积上的，对强专业的绝对影响远大于弱专业——详见 §0.7 末尾「blend 的话语权被 ADI 量级加权」
+
+### 0.4 个人系数 multiplier 的所有组成
+
+#### 0.4.0 先看一眼这些"查表名"是什么
+
+下面表格的"因子形式"列里会出现一堆代码标识符——它们都是 `weights.json` 里的字段名，本质都是**"答案 → delta 数字"的查表**：
+
+| 标识符 | 含义 | 实际数值在哪 |
+|---|---|---|
+| `trait_to_dim` | 素质题（Q08-Q11, Q13, Q14）"选项 → 某维度的 delta"总查表 | `weights.json.trait_to_dim[题号][选项][维度]` |
+| `state_global` | Q15 状态趋势的全局 delta（同时作用于 4 个维度，量级最小） | `weights.json.state_global[选项]` |
+| `resource_to_recover` | Q03/Q05/Q07 专业资源的**基础** delta（还要再乘 `specific_scale`） | `weights.json.resource_to_recover[选项]` |
+| `global_resource_to_recover` | Q12 家庭支持的**基础** delta（还要再乘 `global_scale`） | `weights.json.global_resource_to_recover[选项]` |
+| `specific_scale` / `global_scale` | 按专业敏感度对资源 delta 的"二次缩放" | 详见 §0.4.1 |
+| `ai_impact_levels[ai][ability][dim]` | AI 极化 4×4 矩阵（专业 ai_impact × 学生 ability_index） | `weights.json.ai_impact_levels`，详见 §八 |
+
+**统一公式形态**：每个因子都是 `1 + delta` 的形式——`delta > 0` 拉抬、`delta < 0` 拉低、`delta = 0` 不影响。所有 delta 连乘后得到该维度的 `mult_dim`，再乘上 `base_dim`，最后被 clamp 在 [1, 5]。
+
+#### 0.4.1 完整因子表
+
+每个 `mult_dim` 是以下因子的**连乘**（缺失的题视为 ×1）：
+
+| 来源 | 影响维度 | 因子形式 | 典型幅度 |
+|---|---|---|---|
+| Q08 学习能力 | reach **(主)** + correct (溢) | `1 + trait_to_dim` 两维独立 | reach: A=+0.20 → D=-0.25 / correct: A=+0.10 → D=-0.10 |
+| Q09 难度承受 | reach | `1 + trait_to_dim` | A=+0.20 → D=-0.25 |
+| Q10 试错能力 | correct | `1 + trait_to_dim` | 同上 |
+| Q11 调整能力 | correct | `1 + trait_to_dim` | 同上 |
+| Q12 家庭支持 | 全 4 维（v3.16） | `1 + global_resource_to_recover × global_scale × dim_w` | 基础 A=+0.15 → D=-0.15，scale 见 §0.4.2，dim_w 见下 |
+| Q13 长期投入 | reach | `1 + trait_to_dim` | A=+0.15 → D=-0.20 |
+| Q14 拓展习惯 | paths **(主)** + reach (溢) + correct (溢) | `1 + trait_to_dim` 三维独立 | paths: A=+0.25 → D=-0.15 / reach: A=+0.10 → D=-0.10 / correct: A=+0.10 → D=-0.10 |
+| Q15 状态趋势 | 全 4 维 | `1 + state_global` | A=+5% / B=0 / C=-5% |
+| Q03/Q05/Q07 专业资源 | 全 4 维（v3.16） | `1 + resource_to_recover × specific_scale × dim_w` | 基础 A=+0.20 / B=+0.05 / C=0，scale 见 §0.4.2，dim_w 见下 |
+| AI 极化 | reach + paths + correct（v3.16） | `1 + ai_impact_levels[ai][ability][维度]` | correct 仅 boost 域非零；见 §八 / §十一 4×4 矩阵 |
+
+> **`dim_w` 资源维度权重（v3.16）**：资源 delta 作用于全部 4 维度，各维按 `weights.json::resource_dim_weights` 二次缩放——`recover 1.0 / reach 0.5 / paths 0.5 / correct 0.25`。语义:资源最帮"兜底"，其次"落地就业+拓宽行业"，对"换技能方向"帮助最小。recover=1.0 保持 v1.1 行为不变。
+
+**不进算法的题**：Q01 路径偏好、Q16 学校/专业偏好、Q17 城市重要性、Q18 风险态度——**不进入 ADI 乘法链**，仅用于：(a) 同分时的 tie-break 排序（详见 §十一）；(b) 建议措辞与 Q01×Q18 矛盾交叉验证。
+
+#### 0.4.2 `global_scale` / `specific_scale` 是什么
+
+这是"**系数的系数**"——同一个 Q12 / Q03 / Q05 / Q07 答案，在不同专业里实际产生的 delta 不一样，因为每个专业对家庭资源的依赖程度不同。
+
+**两步走的算式**：
+
+```
+最终 delta = 基础系数（看你的答案）× scale（看专业敏感度）
+```
+
+| 题 | 基础系数（你的答案） | × 哪个 scale |
+|---|---|---|
+| Q12 家庭支持 | `global_resource_to_recover[选项]`（A=+0.15 ~ D=-0.15） | `global_scale` |
+| Q03/Q05/Q07 专业资源 | `resource_to_recover[选项]`（A=+0.20 / B=+0.05 / C=0） | `specific_scale` |
+
+**scale 取值表**（来自 `weights.json.resource_sensitivity_levels`）：
+
+| 专业敏感度 | `specific_scale` | `global_scale` | 代表专业 |
+|---|---|---|---|
+| **low** | 0.5 | 0.7 | CS、数学、统计学（硬技能驱动，家庭资源杠杆小） |
+| **default** | 1.0 | 1.0 | 化学、机械、心理学、汉语言（标准化职业路径） |
+| **high** | 1.5 | 1.3 | 金融、工商管理、口腔医学、法学（圈子/平台敏感） |
+| **decisive** | 2.0 | 1.5 | 临床医学、艺术类（家庭资源近乎决定能否入门） |
+
+**两个例子对比同一个"Q12 选 A（家里明显支持）"**：
+
+- 学 CS（low）：delta = `0.15 × 0.7` = **+0.105**（"你家支持，但 CS 这种硬技能行业靠 LeetCode 和 GitHub，家里帮不上太多"）
+- 学临床医学（decisive）：delta = `0.15 × 1.5` = **+0.225**（"医二代信息差近乎决定性——你家支持 = 巨大优势"）
+
+**为什么这样设计**：`baseline_adi.json` 每个专业打了 `resource_sensitivity` 标签，`weights.json` 单独定义这 4 个等级对应的 specific/global 数值——调参时只改 `weights.json`，不动算法代码、也不用逐个专业改 delta，符合"配置与代码分离"。
+
+详见 §十「Resource Sensitivity 等级分类」。
+
+### 0.5 各步取值范围与"满分"条件
+
+| 量 | 范围 | "满分"条件 |
+|---|---|---|
+| `base_dim` | 1 ~ 5 | 该专业在该维度天花板高（如 CS 的 paths=5） |
+| `multiplier` | ~0.5 ~ ~1.5 | 个人素质对该维度全部友好 |
+| `adjusted_dim` | 1 ~ 5（硬 clamp） | `base × multiplier ≥ 5` |
+| **`ADI_raw`** | **1 ~ 625** | 4 个 `adjusted_dim` 同时 = 5 |
+| `norm_i` | 0 ~ 1 | 该科卷面拿满分 |
+| `FitScore` | 0 ~ 1 | 所有 `key_subjects` 全考过 **且** 全满分 |
+| `favorite_bonus` | 0 ~ ~0.05 | favorite 覆盖核心高权重科目 |
+| `track_mult` | 0.85 或 1.0 | 非"理-track 申无 STEM 专业" |
+| `admission_score` | 0 ~ 1 | FitScore + bonus ≥ 1 触发 cap |
+| `blend_factor` | 0.5 ~ 1.0 | admission_score = 1 |
+| **最终** | **~0.5 ~ 625** | 两条主链同时打满 |
+
+**关键不变量**：`adjusted_dim` 的硬 clamp 是设计核心——再强的个人素质也不能把"专业天花板"打穿，确保模型反映的是"在这个专业里走得通的概率"，而不是"这个人有多牛"。
+
+### 0.6 一个完整数值反推
+
+以你截图里的 332.31 为例（接成绩模式）：
+
+**主链 A — ADI_raw**
+
+```
+adjusted_paths   = 4.84    base × multiplier 后落点
+adjusted_reach   = 5.00    clamp 截顶
+adjusted_correct = 3.31    ← 瓶颈维度，封住整体上限
+adjusted_recover = 4.53
+
+ADI_raw = 4.84 × 5.00 × 3.31 × 4.53 = 362.64
+```
+
+**主链 B — blend_factor**
+
+```
+假设 CS key_subjects = {数学: 0.4, 物理: 0.3, 外语: 0.2, 语文: 0.1}
+若考生分数 数学 128 / 物理 75 / 外语 117 / 语文 100：
+  norm = 128/150, 75/100, 117/150, 100/150
+       = 0.853,   0.750,  0.780,   0.667
+  FitScore = 0.4×0.853 + 0.3×0.750 + 0.2×0.780 + 0.1×0.667
+           = 0.789
+  admission_score ≈ 0.72  (具体取决于 favorite 与 track)
+  blend_factor(v3.15) = 0.5 + 0.5 × 0.72 = 0.86      # 旧 floor: 0.7 + 0.3 × 0.72 = 0.92
+```
+
+**合流**
+
+```
+最终(v3.15) = 362.64 × 0.86 = 311.87       # 截图旧值 362.64 × 0.92 = 332.31
+```
+
+> ⚠️ 两点提醒：(1) 截图 332.31 来自 **v3.15 之前**（floor 0.7），新 floor 0.5 下同一 admission_score 给出 311.87——录取匹配不再"几乎不动分"。(2) v3.16 起资源作用于全 4 维、AI 作用于 correct，若该生有资源或选了 boost/threatened 专业，`ADI_raw` 本身（此处 362.64）也会变；本例仅作"四件套如何合流"的结构示意，不代表当前模型对该输入的精确输出。
+
+### 0.7 提分边际收益（设计哲学的直接推论）
+
+乘积模型对"最低维"极其敏感，对"已经高的维"几乎无感：
+
+| 改动 | 数值 | 增益 |
+|---|---|---|
+| `correct` 从 3.31 → 4.31（攻短板） | 362 → 472 | **+30%** |
+| `paths` 从 4.84 → 5.00（攻已高项） | 362 → 374 | +3% |
+| `admission_score` 从 0.72 → 1.00（高考再上一档） | 312 → 363 | **+16%**（v3.15 floor 0.5 后翻倍） |
+
+**结论**：想提升 ADI，先攻最低维度对应的问卷答案（通常是 Q10/Q11 试错与调整、Q14 拓展习惯），而不是优化已经强的维度，更不是死磕高考分——边际收益完全反过来。
+
+> **blend 的话语权被 ADI 量级加权（保留乘积模型的代价，v3.14 文档化；数值按 v3.15 floor 0.5 更新）**
+>
+> blend 是**乘**在 ADI 乘积上的，而 ADI 跨越 1–625。所以最重的折扣 `blend = 0.5`（-50%，v3.15 floor）：
+> - 砍 625 分专业 → 砍掉 **312.5 分**
+> - 砍 50 分专业 → 只砍掉 **25 分**
+>
+> 即**录取匹配度对「本来就强的专业」绝对影响大得多，对弱专业几乎无所谓**。等价地，在对数空间 `log(final) = Σ log(dim) + log(blend)`，blend 的波动范围（`log(0.5) ≈ -0.693` 到 `0`）仍小于每个维度 `log(5) ≈ 1.6` 的跨度——v3.15 把它从 -0.357 拓到 -0.693，让高考分话语权接近翻倍，但乘积维度仍是主导。
+>
+> **保留乘积是有意选择**：让「天花板高的专业即使录取匹配一般，也能靠四维乘积顶上来」（追上限语义），而不是「你最匹配的专业自动排第一」（尊重适配语义，对应几何平均 `ADI^(1/4)`）。读者须知:blend **不是均匀折扣**，它的有效权重随专业 ADI 大小变化。
+
+---
+
 ## 一、核心公式
 
 ```
@@ -12,16 +228,24 @@
   对每个维度 d ∈ {paths, reach, correct, recover}:
     base = baseline[m][d]                          # 1-5，来自 baseline_adi.json
     multiplier = 1.0
-    for trait in traits_that_affect(d):
+    for trait in traits_that_affect(d):            # Q08-Q14 等
       multiplier *= 1 + weights.trait_to_dim[trait][user_answer][d]
-    if d == recover:
-      multiplier *= 1 + weights.resource_to_recover[user.resource_for[m]]
-    multiplier *= 1 + weights.state_global[user.Q15]        # 全局微调
+    # 资源（v3.16：作用于全部 4 维，按 resource_dim_weights 分级 recover1.0/reach·paths0.5/correct0.25）
+    dim_w = weights.resource_dim_weights[d]
+    sens  = weights.resource_sensitivity_levels[baseline[m].resource_sensitivity]
+    multiplier *= 1 + weights.resource_to_recover[user.resource_for[m]] * sens.specific * dim_w
+    multiplier *= 1 + weights.global_resource_to_recover[user.Q12]      * sens.global   * dim_w
+    # AI 极化（v3.16：reach/paths/correct；correct 仅 boost 域非零）
+    if d in {reach, paths, correct}:
+      multiplier *= 1 + weights.ai_impact_levels[baseline[m].ai_impact][ability_index][d]
+    multiplier *= 1 + weights.state_global[user.Q15]        # 全局微调 Q15
     adjusted[d] = clamp(base * multiplier, 1, 5)
-  total[m] = adjusted.paths * adjusted.reach * adjusted.correct * adjusted.recover
+  adi_total[m] = adjusted.paths * adjusted.reach * adjusted.correct * adjusted.recover
+  total[m]     = adi_total[m] * (0.5 + 0.5 * admission_score)   # v3.15：floor 0.5；无成绩则 ×1
+  personal_fit[m] = Σ_d appetite_weights[d] * adjusted[d]        # v3.16：仅排序用，不进 total
 
-# 排序
-algorithm_rank = sorted(majors, key=total, descending=True)
+# 排序（v3.16 ε-band：同 band 内按 personal_fit，跨 band 按 total）
+algorithm_rank = sorted(majors, key=lambda m: (band(total[m]), personal_fit[m]), descending=True)
 subjective_rank = [Q2, Q4, Q6]  # 用户输入顺序
 agreement = kendall_tau(subjective_rank, algorithm_rank)
 ```
@@ -30,19 +254,26 @@ agreement = kendall_tau(subjective_rank, algorithm_rank)
 
 | 维度 | 主要由哪几道题修正 | 解释 |
 |---|---|---|
-| paths | Q14 拓展习惯（强）+ Q13 长期投入意愿（弱） | 主动叠加技能 + 愿意为多分支持续投入 |
-| reach | Q8 学习能力 + Q9 难度承受 + Q13 长期投入意愿 | 能不能扛住前期 + 学得动 |
-| correct | Q10 试错能力 + Q11 调整能力 | 失败了能不能换路重来 |
-| recover | Q12 家庭支持（全局）+ Q3/5/7 专业资源（专业级） | 走偏后兜底空间 |
+| paths | **Q14 拓展习惯（主）** | 主动叠加技能 → 行业广度 |
+| reach | **Q8 学习能力 + Q9 难度承受 + Q13 长期投入意愿（主）** + Q14 拓展习惯（溢） | 能不能扛住前期 + 学得动 + 愿意持续投入 + 多技能加成 |
+| correct | **Q10 试错能力 + Q11 调整能力（主）** + Q8 学习能力（溢） + Q14 拓展习惯（溢） | 失败了能不能换路重来 + 学得快好转向 + 多技能多备份 |
+| recover | Q12 家庭支持（全局）+ Q3/5/7 专业资源（专业级），**满额** | 走偏后兜底空间（资源杠杆最大处） |
+| 资源外溢（溢） | reach + paths（半额）、correct（¼额），v3.16 | 资源也帮"落地就业/拓宽行业"，对"换技能方向"帮助最小 |
 | 全局微调 | Q15 状态趋势 | 上升 +5%、下降 -5%，作用于所有 4 维度 |
+| AI 杠杆（溢） | reach + paths + correct，经 ability_index（Q08–Q11）查 §十一 4×4 矩阵 | 与 trait 管道叠加；correct 仅 boost 域非零（v3.16）；详见 §十一「双管道」 |
 | **不进算法** | Q1 路径偏好、Q16 学校 vs 专业、Q17 城市重要性、Q18 风险态度 | 仅影响排序展示与建议措辞 |
 
-> **Q13 是唯一"双维度题"**：同时修正 reach（扛得住）和 paths（愿意为多分支持续投入）。
-> 这反映了原文一个微妙判断：意愿同时支撑"学得动"和"走得宽"。代价是 Q13 在乘法里实际出现两次，相当于权重加倍——有意为之。
+> **主维度 + 半幅度外溢（v3.12 起）**：v3.11 取消了 Q13 → paths（因为题面只问"抗延迟满足"，paths 是外推）。v3.12 反向加上 Q08 → correct 和 Q14 → reach/correct（因为题面**直接支撑**多维度——"学新知识快"自然帮换方向、"主动学英语/编程/证书"自然帮就业+换轨）。
+>
+> 区别标准：
+> - **拒绝**（Q13 paths）：题面里**没出现**对应语义 → 不能挂
+> - **接受**（Q08 correct, Q14 reach+correct）：题面里**明确出现**对应行为 → 可挂
+>
+> 幅度规则：**外溢维度 ≈ 主维度的一半，并保持圆整**。例如 Q08 reach +0.20 / -0.25，correct 外溢 +0.10 / -0.10。这样既不抹掉主维度的强信号，又把题面真实包含的外溢信号兑现到算法里。
 
 ## 三、选项 → 修正幅度（initial draft，可在 weights.json 调）
 
-### Q8/Q9/Q10/Q11/Q14（能力类，标准 4 级）
+### Q9/Q10/Q11（能力类，单维度，标准 4 级）
 
 | 选项 | 幅度 | 解读 |
 |---|---|---|
@@ -51,14 +282,23 @@ agreement = kendall_tau(subjective_rank, algorithm_rank)
 | C 中下 | -0.10 | 轻微拉低 |
 | D 弱 | -0.25 | 显著拉低 |
 
-### Q13 长期投入意愿（特殊：同时作用于 reach + paths）
+### Q8 学习能力（reach 主 + correct 溢）
 
-| 选项 | reach 幅度 | paths 幅度 |
+| 选项 | reach（主） | correct（溢） |
 |---|---|---|
-| A | +0.15 | +0.10 |
-| B | +0.05 | +0.05 |
-| C | -0.10 | -0.05 |
-| D | -0.20 | -0.15 |
+| A 强 | +0.20 | +0.10 |
+| B 中上 | +0.05 | +0.05 |
+| C 中下 | -0.10 | -0.05 |
+| D 弱 | -0.25 | -0.10 |
+
+### Q13 长期投入意愿（reach）
+
+| 选项 | 幅度 |
+|---|---|
+| A | +0.15 |
+| B | +0.05 |
+| C | -0.10 |
+| D | -0.20 |
 
 ### Q12 家庭支持（recover 全局）
 
@@ -69,14 +309,14 @@ agreement = kendall_tau(subjective_rank, algorithm_rank)
 | C 基本支持 | -0.05 |
 | D 几乎无 | -0.15 |
 
-### Q14 拓展习惯（paths 主驱动，加强版）
+### Q14 拓展习惯（paths 主 + reach 溢 + correct 溢）
 
-| 选项 | 幅度 |
-|---|---|
-| A 持续主动 | +0.25 |
-| B 一定拓展 | +0.10 |
-| C 偶尔 | -0.05 |
-| D 不主动 | -0.15 |
+| 选项 | paths（主） | reach（溢） | correct（溢） |
+|---|---|---|---|
+| A 持续主动 | +0.25 | +0.10 | +0.10 |
+| B 一定拓展 | +0.10 | +0.05 | +0.05 |
+| C 偶尔 | -0.05 | -0.05 | -0.05 |
+| D 不主动 | -0.15 | -0.10 | -0.10 |
 
 ### Q3/Q5/Q7 专业资源（recover 专业级）
 
@@ -96,14 +336,74 @@ agreement = kendall_tau(subjective_rank, algorithm_rank)
 
 ## 四、Clamp 边界
 
+### 4.1 什么是 clamp
+
+`clamp(x, min, max)` 是个"夹住"函数——把 x 强制限制在 `[min, max]` 区间里：
+
+- 如果 `x < min` → 返回 `min`
+- 如果 `x > max` → 返回 `max`
+- 否则原样返回 `x`
+
+举例：
+
+| 输入 | 计算 | 结果 |
+|---|---|---|
+| `clamp(0.6, 1, 5)` | 0.6 < 1，截到下界 | **1** |
+| `clamp(3.2, 1, 5)` | 在区间内，原样返回 | **3.2** |
+| `clamp(7.5, 1, 5)` | 7.5 > 5，截到上界 | **5** |
+
+ADI 模型里：
+
 ```
-adjusted_dim = clamp(base * multiplier, 1, 5)
+adjusted_dim = clamp(base × multiplier, 1, 5)
 ```
 
-**为什么 clamp 必要：**
-- 保持每维度 1-5 的物理意义（与原文一致，便于反查 5 级量表）
-- 防止个人素质暴涨抹平基础锁定性（**这是核心不变量**）
-- 验证：法学 base = 2×2×1×2 = 8，即使全 A 个人素质，correct 维度上限 = clamp(1 × 1.4, 1, 5) = 1.4，paths/reach/recover 上限约 = 2 × 1.4 ≈ 2.8，总分上限 ≈ 2.8 × 2.8 × 1.4 × 2.8 ≈ 31（高难）；reach 因 Q8+Q9+Q13 三层乘叠加可能更高，但 correct=1.4 锁住上限
+——任何维度调整后**永远在 [1, 5] 之间**，超出就被夹回边界。
+
+### 4.2 为什么需要 clamp
+
+| 设计目标 | 没有 clamp 会怎样 |
+|---|---|
+| 保持每维度 1-5 的物理意义（与原文 5 级量表对齐） | 数值可能跑到负数或 > 5，失去"等级"语义 |
+| **防止个人素质暴涨抹平专业基础短板**（核心不变量） | 一个 base=1 的瓶颈维度乘上 1.5 倍 multiplier 后变 1.5，没事；但若不 clamp 上界，base=5 的维度乘上 1.5 倍变 7.5，会让"天才打满一切"，专业差异被洗掉 |
+
+**核心不变量**：clamp 不是为了截掉极端值这么简单，而是为了保证"专业的天花板由 base 锁死"——再强的个人素质也不能把法学的 correct 维度（base=1）变得和 CS 的 paths 维度（base=5）一样宽。
+
+### 4.3 案例验证：法学（极端例子）
+
+法学的 baseline_adi 4 个 base 是：
+
+```
+paths   = 2     (法律行业以外几乎没法转)
+reach   = 2     (司法考试 + 名校筛选，本科生准入门槛高)
+correct = 1     (毕业后想换方向，沉没成本极大) ← 瓶颈
+recover = 2     (失败后可走通的兜底路径少)
+```
+
+如果完全不调整（multiplier 全 = 1.0），ADI = `2 × 2 × 1 × 2 = 8`（极低，进高难档）。
+
+**问题**：现在假设一个素质极强的学生（所有问卷题选 A），看 multiplier 能不能把法学救起来。
+
+| 维度 | base | 影响此维的题 + 最优系数 | multiplier 上限（乘起来） | base × multiplier | clamp 后 |
+|---|---|---|---|---|---|
+| paths | 2 | Q14 +0.25, Q15 +0.05 | ~1.31 | 2 × 1.31 = 2.63 | **2.63** |
+| reach | 2 | Q08 +0.20, Q09 +0.20, Q13 +0.15, Q14溢 +0.10, Q15 +0.05 | ~1.91 | 2 × 1.91 = 3.83 | **3.83** |
+| correct | 1 | Q10 +0.20, Q11 +0.20, Q08溢 +0.10, Q14溢 +0.10, Q15 +0.05 | ~1.83 | 1 × 1.83 = 1.83 | **1.83** ← 仍是瓶颈 |
+| recover | 2 | Q12 +0.15, Q03/Q05/Q07 +0.20, Q15 +0.05 | ~1.45 | 2 × 1.45 = 2.90 | **2.90** |
+
+**最终**：`2.63 × 3.83 × 1.83 × 2.90 ≈ 53`，属较难档（v3.12 起 Q08/Q14 多维度溢出，比 v3.11 的 ≈40 高 33%）。
+
+> **论证核心仍成立**：correct 维度（base=1）即使加上 Q08/Q14 的外溢仍是 4 个维度里最低的 1.83，乘积模型把"跨到低难（≥200）"封死——纸面极限 53 < 200，仍在较难/高难区间。v3.11 锁高难（<50），v3.12 因外溢溢出到较难（<100）；这是新的真实上限，不是 bug，而是模型对"主动拓展技能 = 部分救场"的合理回应。
+>
+> **v3.16 更新**：本表假设资源只作用 recover（旧模型）。资源扩到全 4 维后，全 A 素质 + **资源全 A + Q12 A** 的法学纸面极限升到 **≈87**（见 `test_personality_cannot_erase_baseline_lock`），仍是较难、远低于中等（150）——baseline lock 不变，只是"家里有法律资源的全才"被合理抬高。correct 仍是瓶颈维。
+
+### 4.4 这个例子要说什么
+
+- **base 是天花板**，individual 系数只是把分数沿着 base 的尺子上下挪
+- **乘积模型对最低维极敏感**——correct 这个 base=1 的瓶颈，无论其他维度怎么努力都救不回来
+- **clamp 上界 5** 在这个案例里没生效（最高的 reach 才 3.48），但它在其他场景生效——比如 CS 的 paths 维度 base=5，再乘个 1.44 的 multiplier 会变 7.2，被 clamp 截回 5，确保"专业 paths 满格"不会被个人素质再放大
+
+> 简言之：clamp 是 ADI 模型的"物理定律"——保证分数永远反映"在这个专业里走得通的概率"，而不是"这个人有多牛"。
 
 ## 五、案例 A/B 期望区间
 
@@ -193,7 +493,13 @@ adjusted_dim = clamp(base * multiplier, 1, 5)
 | 2026-05-18 | 算法 v2.6：Q08-Q14 加 notes 字段 + AskUserQuestion 调用规范收紧 | 用户实测发现 Q08 显示给用户的选项描述与 `question_bank.json` 不一致——Claude 擅自补充了"高考 600+/班级头部"等锚点（这些信息真的有用），同时引入错别字"绿高考考"和未授权改字"D 弱→较弱""加'不建议走对学习要求高的专业'"。单一真理源被破坏，且不可复现。改动：(1) `question_bank.json` 为 Q08-Q14 七题的 28 个选项加 `notes` 字段——把 Claude 创造的有用锚点正式化（高考预期分/排名/行为情境），杜绝幻觉漂移；Q01/Q15-Q18 描述已具体不加 notes；(2) SKILL.md Step 3-5 合并为一张表 + 新增「AskUserQuestion 调用规范（v2.6 起严格执行）」节，明确字段映射 `description = qbank.description + '（参考：' + notes + '）'`，列违规警示矩阵（自创锚点 / 改字 / 错别字 / 加建议性文字）并给 Q08 完整示例代码；(3) 新增 lint `test_question_bank_notes_present_for_q08_q14`——若未来 notes 字段被删除则测试失败防止再次漂移。验证：76/76 测试绿。|
 | 2026-05-18 | 算法 v2.7：完善全部 12 题 notes + 清洗 Claude 自创错别字 | 用户跑完一遍完整测评后把 Q01/Q08-Q18 显示给用户的内容贴回来——其中包含大量有用的具体锚点（哪类专业、对应的具体行为情境），同时也暴露 Claude 在 v2.6 之前自创时引入的错别字。让所有内容回流到 question_bank.json 作为 notes，单一真理源最终建立。改动：(1) Q01 加 notes——稳定型对应医生/公务员/法官等体制内、可调整型对应 CS/数学/经济、冲上限型对应金融/创业/科研突破；(2) Q08-Q14 现有 notes 用 Claude 显示的更具体行为细节增强（「能从难中找乐趣」「沉没成本不构成阻碍」「有 1-2 个跨学科项目/副业/独立作品」）；(3) Q15 加 notes（上升/稳态是心理素质底盘/下降需恢复）；(4) Q16 加 notes 并**严格按 JSON 顺序对齐**——A=优先学校 / B=优先专业 / C=看情况——修正 Claude 在 AskUserQuestion 显示时把 A/C 顺序搞反的隐患（用户实际看到的 A 显示成了「优先专业」，是错位的）；(5) Q17 加 notes（不重要/中大型/一线/只一线）；(6) Q18 加 notes（避险/权衡/进取）。错别字清洗 13 处：绿高考考→高考预期、召难→枯燥、携动→裹挟、赔成本→沉没成本、点注→点拨、错远目标→长远目标、拓展身外→拓展课外、占个赔始→占先机、备粗的→更可靠的、锐问→大风险、锉→升、心里质量底定→心理素质底盘、举一反三学别的东西→学其他东西。共更新 44 个选项 notes。Lint test 扩展为 Q01/Q08-Q18 全部 12 题必须有 notes。验证：76/76 测试绿。|
 | 2026-05-18 | 算法 v3.0：description 升级为多 bullet 串，verbatim 还原用户提供的原始问卷内容 | 用户提供完整原始问卷文本（每个选项含 2-3 条并列短句）+ 截图，要求 description 保留原始多 bullet 格式，notes 作为通俗补充展示。v2.7 之前 description 是单行压缩串（"学新知识通常很快能抓住重点；较复杂内容也能较快理解"），丢失了原始问卷的结构感。改动：(1) 44 个选项 description 重写为多 bullet 格式，用 `\\n` 分隔——Q01/Q08-Q14/Q17/Q18 全部多行（3 bullet 居多，Q12-Q14 是 2 bullet），Q15/Q16 保持单行（原本就短），Q02-Q07 资源题不动；(2) SKILL.md 「AskUserQuestion 调用规范」升级到 v3.0——明确 description 多行渲染：`qbank.description` 含 `\\n` 分隔的 bullet，AskUserQuestion 调用时**保留 `\\n` 不变**（渲染器自动把每行作为 bullet 展示），最终 description = `qbank.description + '\\n（参考：' + notes + '）'`；违规警示加两条——禁止合并 bullet、禁止删除 bullet；示例代码 Q08 完整展示新写法；(3) 零代码改动（render 层用 label 不读 description）；76/76 测试绿。这是 v2.5 「按本科课程实际依赖」+ v2.7 「Claude 自创内容正式化」之后的最后一步——把所有显示给用户的文案彻底回到 JSON 单一真理源，AskUserQuestion 调用时直接拼接，不再有任何 Claude 重写空间。|
+| 2026-05-19 | 算法 v3.13：tie-break B 顶点（neutral）加 reach 0.10，消除 reach 权重沿光谱的断崖 | 用户洞察：tie-break 矩阵里 reach 只出现在 A 顶点，导致权重沿光谱 `strong_averse 0.50 → averse 0.35 → neutral 0.00` 断崖式归零——等于说"只有求稳的人才在乎能否就业"。但 reach（成功可达性）是**地板型维度**（人人都想成功就业），不像 paths（行业广度）那样是进取者专属偏好。把 reach 独占给 A 语义不成立。改动：(1) `weights.json::appetite_tie_break_weights.neutral` 从 {paths 0.34, reach 0, correct 0.33, recover 0.33} 改为 {paths 0.30, reach 0.10, correct 0.30, recover 0.30}——reach 取**最小非零**权重（B 里最低），既修复地板语义，又保留对"reach 极高其他全废"铁饭碗陷阱专业的警惕（若给均权 0.25，这类偏科专业会反超四维均衡专业，且 fixture test_neutral_tie_break_ranks_b_above_a_profile 会失败）；(2) 连带按插值公式 averse=0.7A+0.3B、seeking=0.3B+0.7C 重算两行：averse {0.10,0.35,0.10,0.45}→{0.09,0.38,0.09,0.44}、seeking {0.45,0,0.45,0.10}→{0.44,0.03,0.44,0.09}，使 reach 沿光谱 `0.50→0.38→0.10→0.03→0.00` 单调平滑无断崖；(3) `_doc` 更新 B 顶点定义（四维含地板 reach）+ v3.13 说明；(4) `test_tie_break_weights_loaded_correctly_per_appetite` 5 行断言同步更新 averse/neutral/seeking 三行；(5) `§12.3` 权重矩阵表 + 几何意义 B 顶点定义 + 新增"B 为什么有 reach"段；(6) `§12.4` tie-break 算例重写为"铁饭碗陷阱 X vs 四维均衡 Y"，BB 选 Y（reach 0.10 压不过 paths/correct 全面优势），并演示均权 0.25 下 X 反超 → 论证最小非零权重的必要性。strong_averse/strong_seeking/contradiction 三行不变（纯 A/C 顶点与全 0 不受 B 影响）。验证：84/84 测试绿。|
+| 2026-05-19 | 算法 v3.12：Q08 加 correct 外溢、Q14 加 reach+correct 外溢（题面直接支撑的多维度）+ 新增 §十二 Tie-break 机制文档 | 用户洞察：(1) Q08 学习能力题面「学新知识快、复杂内容也能较快理解」直接支撑"换方向时学得快"→ correct；(2) Q14 拓展习惯题面「持续主动学英语/编程/证书/工具」直接支撑"找工作多一手"→ reach、"转向多一手"→ correct。这与 v3.11 取消 Q13→paths **不矛盾**：v3.11 的拒绝标准是"题面没出现对应语义"（"长期投入"未提"多分支"），v3.12 的接受标准是"题面明确出现对应行为"。两者共同确立**正反双向判据**：挂维度的充要条件是题面直接支撑，不是补信号也不是强行单维度。改动：(1) `weights.json::trait_to_dim.Q08` 加 correct 子表（外溢幅度 = reach 主幅度的约一半并保持圆整：A=+0.10/B=+0.05/C=-0.05/D=-0.10）；(2) `weights.json::trait_to_dim.Q14` 加 reach + correct 两个外溢子表（各 A=+0.10 → D=-0.10）；(3) `§0.4.1` 因子表 Q08/Q14 行标注"(主)/(溢)"双维度；(4) `§二` 维度映射表 reach 行加 Q14溢、correct 行加 Q08溢+Q14溢；(5) `§二` 末尾"主维度+半幅度外溢（v3.12 起）"原则替换 v3.11 的单维度表述，明确正反判据 + 半幅度规则；(6) `§三` 把 Q8/Q9/Q10/Q11/Q14 合并表拆成"Q9/Q10/Q11 单维度"+"Q8 双维度"+"Q14 三维度"三张表；(7) `§4.3` 法学案例 reach multiplier 上限 1.74→1.91、correct 1.51→1.83，纸面总分上限 ≈40→≈53（从锁高难<50 溢到较难<100），更新论证为"correct 仍是瓶颈维、跨到低难仍被封死"。**端到端影响**：Case A（全 A 素质）经济 495.56→498.75、英语 237.66→261.42 (+10%)、法学 20.57→27.37 (+33%，仍高难<50 因 case A 资源全 C/Q15=B 非极端)；Case B（中低素质）法学 2.91→2.77、英语 28.04→26.57、汉语言 21.03→19.93（均 -5%，Q14=C 外溢拉低）。**所有案例分档不变**（§五期望区间全满足）。**文档侧**：新增 §十二「Tie-break 机制」——补齐用户指出的"tie-break 没有说明"缺口，含 6 级 risk_appetite 表、5 级×4 维权重矩阵 + 三角线性插值几何、tie_break_score 公式 + 算例、contradiction 全 0 权重特殊处理、调参方法；`§0.4` "不进算法的题"内联指向 §十二。验证：84/84 测试绿（含 tie-break fixture，零改动通过）。|
+| 2026-05-19 | 算法 v3.11：Q13 从双维度（reach+paths）收紧为单维度（reach），消除隐性权重加倍 | 用户洞察：Q13 题面只问「能否接受多年持续高投入、回报较晚」——本质是抗延迟满足，对 reach（四年扛得住）的映射干净；但映射同时挂 paths 的逻辑（v3.10 前 §二的"愿意为多分支持续投入"）是外推，题面完全没问"多分支"。文档自承"Q13 在乘法里实际出现两次相当于权重加倍——有意为之"，这是用 Q13 给 paths 补信号的**隐性设计**——违反"一题一信号"原则，未来调参时谁也说不清 Q13 改一档实际影响了哪个维度。改动：(1) `weights.json::trait_to_dim.Q13` 删 paths 子表，4 个选项只保留 reach delta（A=+0.15 ~ D=-0.20 不变）；(2) `scoring_model.md::§0.4.1` 因子表 Q13 行从"reach + paths"改为单维度 reach；(3) `§二` 维度映射表 paths 行去掉 Q13、reach 行解释补"愿意持续投入"；(4) `§二` 末尾把"双维度题"段落改写为「每道题一个主维度（v3.11 起）」原则说明；(5) `§三 Q13` 子表从"reach + paths 幅度"双列改回单列；(6) `§4.3` 法学案例验证 paths multiplier 上限从 1.44 降为 1.31（去掉 Q13 +0.10 贡献），总分上限从 ≈44 降为 ≈40，仍属高难档。(7) **测试 fixture 调整**：`_tie_break_overrides` B_MIXED 从 (paths=3, reach=1, correct=2, recover=2) 改为 (2,1,3,2)——v3.11 之前 paths_mult ≈ reach_mult 时三者 total 严格相等；v3.11 后 paths_mult=1.10 ≠ reach_mult=1.158，原 B_MIXED 因分阶段 rounding 漂到 17.69 vs A/C 的 17.70，tie-break 无法 fire。新 base 排布在 all-B 答案下精确得 17.70，保持 base product=12、"reach 弱 + 三维均衡" B-profile 语义不变。**端到端影响**：Case A 经济学 521.64→495.56 (-5%)、英语 261.46→237.66 (-9%)、法学 22.63→20.57 (-9%)；Case B 法学 2.77→2.91 (+5%)、英语 26.63→28.04 (+5%)、汉语言 19.98→21.03 (+5%)。**所有案例分档不变**（§五期望区间全部满足）。**版本号跳号说明**：文档调参日志最后正式条目为 v3.1，v3.2-v3.10 在 git commit 中存在但未补录文档，本次直接续用 v3.11 与 git history 对齐。验证：84/84 测试绿。|
 | 2026-05-18 | 算法 v3.1：Q01 前置到 Step 3 第一题，最大化与 Q18 的间隔 | 用户洞察：Q01 路径偏好（"想要什么样的人生路径"=认知/价值层）和 Q18 风险态度（"面对不确定时通常什么状态"=行为/情绪层）测的是同一构念的两个层面，应该用经典心理测量学的"重复测量信度检验"——分置首尾，最大化间隔，让 consistency-bias 最低。v3.0 之前两题同在 Step 5 最后一轮紧邻，用户潜意识保持回答一致，丢失诊断价值。改动（纯 SKILL.md 文档，零代码零数据改动）：(1) Step 3 改为偏好/状态族 4 题（Q01 + Q15 + Q16 + Q17）front-load——在能力题启动用户思维前，捕捉未被启动的认知/价值偏好；(2) Step 4 能力族（Q08-Q11）不动，居中 deep-dive；(3) Step 5 意愿+风险族（Q12-Q14 + Q18）back-load——Q18 在用户经过 14 题素质题暴露真实自我后才回答；(4) Q01 与 Q18 间距 11 题，consistency-bias 最低，AC/CA 矛盾才会被诚实暴露并触发 SKILL.md 末尾的复核流程；(5) SKILL.md 新加段「为什么 Q01 前置、Q18 后置」详细解释设计动机。零代码改动；76/76 测试绿。|
+| 2026-05-19 | 算法 v3.14（纯文档，零代码零权重）：(1) §十一 新增「Ability 与 reach 的双管道」小节——把 ability_index（Q08–Q11）既经 trait 管道又经 AI 矩阵进入 reach 的共线性显式承认为**有意设计**，与 v3.11 删除的 Q13→paths 隐性加倍划清边界（此处题面能力实质驱动 AI 适应力、有语义支撑；Q13 当年是纯外推），并记录两个副作用（调 `trait_to_dim.Q08.reach` 只改一半；Q10/Q11 经 ability_index 漏入 reach/paths）；§二 维度映射表加「AI 杠杆（溢）」行交叉指向。(2) §0.7 末尾 + §0.3 加注：blend 乘在 1–625 乘积上，同一个 -30% 折扣砍强专业 ≈187 分、砍弱专业 ≈15 分，录取匹配度的绝对影响被 ADI 量级加权——保留乘积模型为有意选择（让天花板高的专业即使匹配一般也能靠维度乘积顶上来），但 blend 非均匀折扣（对数空间 log(blend) 波动远小于各维 log(5)）。无需重跑断言；测试不受影响。 | 设计审查 #1（reach 能力双计数 vs v3.11 原则）决定承认+文档化；#2（乘积尺度下 blend 影响非均匀）决定保留乘积+文档化。 |
+| 2026-05-19 | 算法 v3.15：admission_blend floor 0.7→0.5（range 0.3→0.5，满分仍=1.0），把折扣区间从 [0.7,1.0] 拓到 [0.5,1.0] | 用户决定：旧 floor 下高考分几乎是装饰——admission 0→1 仅 ±30%，远小于单维度提升的数倍。审查发现硬过滤已剔除不合规专业、soft_filter 已分桶，连续 admission_score 被挤进窄带后，同档内排名几乎纯由素质驱动。改动：(1) `weights.json::admission_blend` min_factor 0.5 / range 0.5 + _doc；(2) 2 个 blend 断言更新（0.7→0.5、0.85→0.75）；(3) scoring_model.md §0.1/§0.2/§0.3/§0.5/§0.6/§0.7 公式与区间同步，§0.6 worked example 重算（332.31→311.87 并标注为 pre-v3.15 截图），§0.7 admission 提分边际 +9%→+16%、blend 量级加权注按 floor 0.5 重写（-50% 砍 625→312.5）。case A/B 案例不传 admission_score 故 blend=1.0 不受影响。验证：84/84 测试绿。 | 设计审查 #3：0.7 floor 让高考分话语权过小，决定降到 0.5 让录取匹配能真正移动排名。 |
+| 2026-05-19 | 算法 v3.16：三处结构扩展——(#5) 资源作用于全 4 维、(#6) AI 极化加 correct 列、(#4) appetite 从 exact-tie 升级为 ε-band 排名 + personal_fit 子分 | 用户三项决定。改动：(1) **#5** `weights.json` 加 `resource_dim_weights`（recover 1.0/reach·paths 0.5/correct 0.25）；`compute_dimension` 删 `if dimension=="recover"` gate，资源 delta 对全 4 维按 dim_weight×sensitivity 缩放（recover 行为不变）。(2) **#6** `ai_impact_levels` 每格加 correct（仅 boost 域非零:high+0.10/mid+0.05/low-0.05/very_low-0.10，余 0）；gate 改 `if dimension in ("reach","paths","correct")`。语义:correct 只在 boost 域极化（AI 是该域核心工具,高能力自学换方向↑、被替代者↓），其他域换方向能力由通用能力决定故 0。(3) **#4** 新增 `appetite_rank_band.pct`（0.05）；`_band_index` 把 total 装进对数带，`_appetite_sort_key` 改为 (band, personal_fit)；`compute_major` 输出 `personal_fit`（=旧 tie_break_score）。**显示的 total/grade 不变**——保留 v1.5「ADI 客观可比」语义，appetite 只重排同带专业。(4) 文档:§一 伪代码、§二 映射表（资源外溢行 + AI 加 correct）、§0.4.1 因子表、§十（资源全维 + 调参）、§十一（correct 列 + 双管道补 correct + 调参）、§十二（exact-tie→ε-band 全节重写 + personal_fit 改名 + band 调参）、§4.3（法学纸面极限 53→87 caveat）全部同步。**band-safe 设计**:case A/B 专业无 boost、resource C、Q12 温和,不受 #5/#6 影响。**核心保险丝** `test_personality_cannot_erase_baseline_lock`：全 A+资源 A 下 临床 33.54(高难,held)、法学 87.19(较难)、艺术 55.49——艺术从 <50 升到 较难,assertion 50→100 放宽（decisive-sensitivity 专业资源杠杆最大,是 #5 有意设计,baseline lock 仍成立<150）。新增 2 个 ε-band 测试（_band_index 分带 + _appetite_sort_key 同带按 personal_fit/跨带按 total）。验证：86/86 测试绿（84+2）。 | 设计审查 #4 选「只影响排名不进显示 ADI」(保留 v1.5)、#5 选「分级 recover满/reach·paths半/correct¼」、#6 选「扩到 correct」。 |
 
 ## 十一、AI 极化效应（v1.2 核心设计）
 
@@ -231,11 +537,35 @@ Q8 学习能力 + Q9 难度承受 + Q10 试错 + Q11 调整 → 算术平均（A
 | **disrupted** | 0 / -0.05 | -0.05 / -0.05 | -0.15 / -0.10 | -0.25 / -0.15 |
 | **threatened** | **-0.10 / -0.10** | -0.20 / -0.15 | -0.30 / -0.20 | -0.40 / -0.25 |
 
+**correct 列（v3.16，仅 boost 域非零）：**
+
+| ai_impact \ ability | high | mid | low | very_low |
+|---|---|---|---|---|
+| **boost** | +0.10 | +0.05 | -0.05 | -0.10 |
+| neutral / disrupted / threatened | 0 | 0 | 0 | 0 |
+
+> **为什么 correct 只在 boost 域极化**：AI 是这些域（数学/CS/DS/AI）的核心生产工具——高能力者能用它快速自学换方向（correct↑），被替代者更难翻身（correct↓）。在 disrupted/threatened/neutral 域，你的「换方向能力」由通用能力决定（已在 Q10/Q11→correct 体现），不随该域的 AI 状态变化，故 correct delta=0。幅度取 reach 的约一半。
+
 **关键观察：**
 - **boost 行不是单向正**：high 受益 +20%，very_low 反被 -25% 替代——这就是"上限提高、下限降低"
 - **threatened 行整体负**：即使 high 能力也是 -10%，因为行业结构性收缩
 - **disrupted 比 threatened 温和**：保留路径但初级岗被挤
 - **neutral 不分能力**：医学/教育/物理等没有 AI 极化效应
+
+### Ability 与 reach 的双管道（有意设计，v3.14 文档化）
+
+`ability_index` 由 Q08–Q11 平均得到，而 reach 维度的 trait 管道**已经**直接吃 Q08/Q09。所以同一份学习能力经**两条管道**进入 reach：
+
+1. **trait 管道**（§二 / `trait_to_dim`）：Q08/Q09 直接抬 reach——语义是「能不能扛住四年、学得动」；
+2. **AI 矩阵管道**（本节）：同样的 Q08/Q09（连同 Q10/Q11）算出 ability_index，再经本 4×4 矩阵给 reach 加 delta——语义是「AI 时代能不能把能力转成杠杆」。
+
+**这是有意的，不是 v3.11 要消除的那种隐性加倍。** 区别在语义支撑：v3.11 删 Q13→paths，是因为题面只问「长期投入/抗延迟满足」、根本没出现「多分支」，挂 paths 纯属外推；而这里 Q08–Q11 的学习/适应能力**确实**实质驱动 AI 适应力，两条管道代表两个不同机制，叠加正是模型想表达的核心信号（强者上限更高、弱者被替代）。
+
+**两个必须记住的副作用：**
+
+- **调 reach 的 Q08 权重时，改 `trait_to_dim.Q08.reach` 只改了一半**——另一半藏在 `ai_impact_levels[*][ability].reach`，两处要一起想，否则会重蹈 v3.11 警告的「不知道旋钮动了哪个维度」。
+- **Q10/Q11 经 ability_index 漏入 reach/paths**：§二 说 Q10/Q11 只映射 correct，但它们是 ability_index 的成分，故对 boost/threatened 专业也会经 AI 矩阵轻微影响 reach/paths。这是用「4 题平均」当 AI 杠杆代理的固有代价，接受之。
+- **（v3.16）correct 在 boost 域也有双管道**：correct 的 trait 输入含 Q08溢/Q10/Q11/Q14溢，而 AI 矩阵的 correct 列又经 ability_index（含 Q08/Q10/Q11）作用于 boost 专业的 correct——同 reach 一样的有意叠加，调 boost 专业 correct 时记得两处都要看。
 
 ### 39 专业 ai_impact 分类
 
@@ -257,7 +587,8 @@ Q8 学习能力 + Q9 难度承受 + Q10 试错 + Q11 调整 → 算术平均（A
 - 重分级某专业 → 改 `baseline_adi.json.majors.<name>.ai_impact`
 - 调整 16 个组合的数值 → 改 `weights.json.ai_impact_levels.<level>.<ability>.<dimension>`
 - 调整能力分档阈值 → 改 `weights.json.ability_index_thresholds`
-- 想让 AI 影响也作用于 correct/recover 维度 → 改 score_engine.compute_dimension 的 `if dimension in ("reach", "paths"):` 条件（不推荐，破坏当前"AI 影响产业结构 / 资源影响个人兜底 / 能力影响纠偏"的语义分层）
+- 调整 correct 列数值 → 改 `weights.json.ai_impact_levels.<level>.<ability>.correct`（v3.16：correct 已纳入 AI，gate 为 `if dimension in ("reach", "paths", "correct")`；当前仅 boost 域非零）
+- 想让 AI 也作用于 recover 维度 → 改 score_engine.compute_dimension 的 gate 加入 "recover"（不推荐，recover=个人兜底空间，与"AI 影响产业结构"语义分层冲突）
 
 ## 十、Resource Sensitivity 等级分类
 
@@ -276,7 +607,105 @@ Q8 学习能力 + Q9 难度承受 + Q10 试错 + Q11 调整 → 算术平均（A
 - **high**：圈子/平台/家族企业敏感专业；普通家庭与有资源家庭的天花板差距显著
 - **decisive**：信息差和圈子近乎决定能否进入第一份关键工作；临床医学的医二代信息优势、艺术类的圈子推荐机制是典型代表
 
+**资源作用维度（v3.16）**：资源不再只作用 recover——`resource_dim_weights` 把同一个资源 delta 按维度二次缩放后作用于全 4 维：`recover 1.0 / reach 0.5 / paths 0.5 / correct 0.25`。最终 delta = `base_resource × sensitivity_scale × dim_weight`。语义:资源最帮"兜底"，其次"落地就业/拓宽行业"，对"换技能方向"帮助最小。
+
 **调整方法**：
 - 重新分级某专业 → 改 `baseline_adi.json.majors.<name>.resource_sensitivity`
 - 调整 4 个等级的数值幅度 → 改 `weights.json.resource_sensitivity_levels`，不改算法
-- 想让"资源也影响 reach 维度"（方案 B）→ 后续扩展，当前只作用于 recover
+- 调整资源在各维度的相对强度 → 改 `weights.json.resource_dim_weights`（v3.16 方案 B 已落地，曾经只作用 recover），不改算法
+
+## 十二、Appetite 排名机制（v3.16 ε-band，旧称 Tie-break）
+
+### 12.1 它是什么（v3.16：exact-tie 升级为 ε-band）
+
+历史上这是「ADI 总分**完全相同**时按什么排序」。但 exact-tie 在真实数据上几乎不触发（不同专业 total 极少 bit/2 位小数完全相等），导致整套 appetite 权重形同虚设。v3.16 改为 **ε-band 排名**：
+
+- 先把每个专业的 `total` 装进**对数带**（相对宽度 `pct`，默认 0.05 = 5%）。
+- **跨带**：纯按 `total` 降序——客观可走通性主导。
+- **同带**（total 相对差 ≤ ~5%，视为"势均力敌"）：按 `personal_fit` 降序——`personal_fit = Σ(appetite_weights[dim] × adjusted[dim])`，由 Q01×Q18 推出的 `risk_appetite` 等级查 4 维权重表得来。
+
+**关键性质（v1.5 语义保留）**：appetite **不进入 ADI 乘法链，也不改显示的 total / 难度档**——它只在"势均力敌"时重排，并产出一个 `personal_fit` 子分供报告展示。所以 ADI 仍是"客观可走通"、可跨学生比较的纯客观分。这正是你 #4 选「只影响排名，不进显示 ADI」的落点。
+
+### 12.2 risk_appetite 的 6 个等级
+
+由 `(Q01, Q18)` 答案组合查表（`weights.json::q1_q18_to_appetite`）：
+
+| Q01 \ Q18 | A 求稳 | B 权衡 | C 进取 |
+|---|---|---|---|
+| **A 想稳定** | strong_averse (AA) | averse (AB) | **contradiction** (AC) |
+| **B 想可调整** | averse (BA) | neutral (BB) | seeking (BC) |
+| **C 冲上限** | **contradiction** (CA) | seeking (CB) | strong_seeking (CC) |
+
+- **5 个连续等级**：strong_averse → averse → neutral → seeking → strong_seeking，反映"求稳 ↔ 进取"光谱
+- **第 6 个特殊等级 contradiction**：AC/CA 组合——价值偏好（Q01）与行为风格（Q18）反向，视为信号矛盾，触发交叉验证警告
+
+### 12.3 4 维度权重矩阵
+
+每个等级对应 4 个维度的权重（`weights.json::appetite_tie_break_weights`，每行权重和=1.0）：
+
+| 等级 | paths | reach | correct | recover | 解读 |
+|---|---|---|---|---|---|
+| strong_averse | 0.00 | 0.50 | 0.00 | 0.50 | 纯 A profile：要"成功可达"+"失败可控" |
+| averse | 0.09 | 0.38 | 0.09 | 0.44 | 主 A，少量 B 混入 |
+| **neutral** | 0.30 | 0.10 | 0.30 | 0.30 | 纯 B profile：四维都要一点，reach 最低 |
+| seeking | 0.44 | 0.03 | 0.44 | 0.09 | 主 C，少量 B 混入 |
+| strong_seeking | 0.50 | 0.00 | 0.50 | 0.00 | 纯 C profile：要"机会广"+"出错能改" |
+| **contradiction** | 0.00 | 0.00 | 0.00 | 0.00 | 信号矛盾 → 不偏好任何维度，加权和恒为 0，同分按输入顺序稳定排序 |
+
+**几何意义**：A/B/C 是三角形三个顶点，5 个连续等级是这个三角形上的**线性插值**：
+
+```
+strong_averse = 1.0 × A
+averse        = 0.7 × A + 0.3 × B
+neutral       = 1.0 × B
+seeking       = 0.3 × B + 0.7 × C
+strong_seeking= 1.0 × C
+```
+
+其中：
+- A 顶点 = `{reach: 0.5, recover: 0.5}` —— "求稳"的两个支柱
+- B 顶点 = `{paths: 0.3, reach: 0.1, correct: 0.3, recover: 0.3}` —— "可调整"的三支柱 + 地板 reach
+- C 顶点 = `{paths: 0.5, correct: 0.5}` —— "冲上限"的两个支柱
+
+> **B 为什么有 reach（v3.13 起）**：`reach`（成功可达性）是**地板型维度**——所有人都想成功就业，不分求稳/权衡/进取，不像 `paths`（行业广度）那样是进取者专属偏好。v3.12 之前 B 的 reach=0，导致 reach 权重沿光谱在 `averse 0.35 → neutral 0.00` 出现**断崖**，等于说"只有求稳者才在乎就业"，语义不成立。v3.13 给 B 一个**最小非零** reach（0.10，B 里最低权重）：既修复地板语义，又保留对"reach 极高其他全废"铁饭碗陷阱专业的警惕（若给 reach 均权 0.25，这类偏科专业会反超四维均衡专业）。连带重算 averse/seeking 后，reach 沿光谱变为 `0.50 → 0.38 → 0.10 → 0.03 → 0.00`，单调平滑无断崖。
+
+### 12.4 personal_fit 公式（v3.16，旧称 tie_break_score）
+
+```
+personal_fit(major) = Σ (w_dim × adjusted_dim)
+                    = w_paths × paths_adj
+                    + w_reach × reach_adj
+                    + w_correct × correct_adj
+                    + w_recover × recover_adj
+```
+
+`personal_fit` 作为每个专业的输出字段（供报告展示），并在**同带**专业间做降序排名。例（BB 权衡型，neutral 权重 `{paths 0.30, reach 0.10, correct 0.30, recover 0.30}`，假设 X/Y 落在同一 ε-band）：
+
+- 专业 X（铁饭碗陷阱型）: adjusted = `{paths 1, reach 5, correct 1, recover 4}` —— reach 超高，其他低
+- 专业 Y（四维均衡型）: adjusted = `{paths 3, reach 3, correct 3, recover 2}`
+- 假设 X 和 Y 的 ADI total 相同
+- X 的 tie_break_score = 0.30×1 + 0.10×5 + 0.30×1 + 0.30×4 = 0.30 + 0.50 + 0.30 + 1.20 = **2.30**
+- Y 的 tie_break_score = 0.30×3 + 0.10×3 + 0.30×3 + 0.30×2 = 0.90 + 0.30 + 0.90 + 0.60 = **2.70**
+- **Y 排前**——权衡者偏好四维均衡的专业。X 的 reach=5 虽超高，但 reach 权重只有 0.10，压不过 Y 在 paths/correct 上的全面优势。
+
+**这个例子正解释了 reach=0.10 而非均权的设计**：若 reach 给均权 0.25，X 的 score = 0.25×(1+5+1+4) = 2.75 反而 > Y 的 0.25×(3+3+3+2) = 2.75（持平甚至因 base 微差反超）——铁饭碗陷阱专业靠单一超高 reach 就能挤掉均衡专业。给 reach 最低非零权重，既承认"权衡者也要就业"，又不让单一维度绑架排序。
+
+### 12.5 contradiction 的特殊处理
+
+`(Q01=A, Q18=C)` 或 `(Q01=C, Q18=A)` → 你"心里想稳"但"行为偏冒险"，或反之。这种矛盾下：
+
+1. `risk_appetite` 标记为 `"contradiction"` 而非任何插值等级
+2. `personal_fit` 用全 0 权重 → 永远为 0 → 同带专业按 `majors_input` 顺序保留（stable sort）
+3. 报告 chip 显示 ⚠️ "信号矛盾（Q1 与 Q18 方向相反）"
+4. SKILL.md 末尾的"Q1/Q18 矛盾交叉验证"流程触发，要求 Claude 与用户复核
+
+**为什么不强行选一边**：算法不知道你是"嘴上稳实际激进"还是"嘴上激进实际稳"——这是用户自己也未必清楚的内在张力。算法的诚实做法是**承认不知道**，把这个张力呈现给用户而不是替他决策。
+
+### 12.6 调参方法
+
+- 改 5 级权重 → 改 `weights.json.appetite_tie_break_weights[等级][维度]`，每行权重和必须=1.0（contradiction 行例外，恒为全 0）
+- 改 (Q01, Q18) → appetite 映射 → 改 `weights.json.q1_q18_to_appetite`
+- 改"势均力敌"带宽 → 改 `weights.json.appetite_rank_band.pct`（v3.16，默认 0.05）。调大 → appetite 影响更多专业的排序；调小 → 越接近旧的 exact-tie 行为
+- 想让 appetite 影响 ADI 主分（v1.4 曾尝试，v1.5 回退）→ 不推荐，会污染"客观可走通"语义。v3.16 选择 ε-band 排名 + `personal_fit` 子分，正是为了既让 appetite 实际起作用、又不碰显示的 ADI total / 难度档
+
+详见调参日志 v1.4 → v1.8 系列对 tie-break 机制的演化记录。

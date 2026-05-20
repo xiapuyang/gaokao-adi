@@ -9,6 +9,7 @@ conversation layer and is passed in as `_session_overrides`.
 """
 import argparse
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -232,14 +233,18 @@ def compute_dimension(
     """Compute one dimension's adjusted score with contributor trace.
 
     Pipeline:
-      base × Π(trait_to_dim deltas) × resource (recover only) × ai_impact
-            (reach/paths only) × state_global → clamp(1, 5)
+      base × Π(trait_to_dim deltas) × resource (all dims, tiered) × ai_impact
+            (reach/paths/correct) × state_global → clamp(1, 5)
 
-    The recover dimension folds in resource signals scaled by per-major
-    resource_sensitivity. The reach and paths dimensions fold in AI impact
-    scaled by the (ai_impact_level × ability_level) 4×4 matrix — this is
-    where the polarization effect lives (boost majors lift high-ability
-    users but hurt low-ability ones; threatened majors hurt everyone).
+    Resource signals (Q3/5/7 specific + Q12 global) fold into all four
+    dimensions (v3.16), scaled by per-major resource_sensitivity AND by
+    resource_dim_weights (recover 1.0 / reach·paths 0.5 / correct 0.25) —
+    resources help "safety net" most, "landing + breadth" next, "skill pivot"
+    least. The reach, paths and correct dimensions fold in AI impact scaled by
+    the (ai_impact_level × ability_level) 4×4 matrix — this is where the
+    polarization effect lives (boost majors lift high-ability users but hurt
+    low-ability ones; threatened majors hurt everyone). correct only polarizes
+    in boost fields (AI as pivot-accelerator); recover is AI-immune.
 
     Risk appetite (Q1+Q18) does NOT enter ADI scoring; it only affects
     tie-break ordering and report wording downstream.
@@ -265,27 +270,34 @@ def compute_dimension(
         contrib_records.append(
             {"source": qid, "delta": delta, "answer": answers.get(qid)}
         )
-    if dimension == "recover":
+    dim_w = weights.get("resource_dim_weights", {}).get(
+        dimension, 1.0 if dimension == "recover" else 0.0
+    )
+    if dim_w:
         sens = _resolve_sensitivity(weights, sensitivity_level)
         base_specific = weights["resource_to_recover"].get(resource_key, 0.0)
-        r_delta = base_specific * sens["specific"]
-        multiplier *= 1 + r_delta
-        contrib_records.append({
-            "source": "resource",
-            "delta": round(r_delta, 4),
-            "answer": resource_key,
-            "sensitivity_factor": sens["specific"],
-        })
+        r_delta = base_specific * sens["specific"] * dim_w
+        if r_delta != 0 or dimension == "recover":
+            multiplier *= 1 + r_delta
+            contrib_records.append({
+                "source": "resource",
+                "delta": round(r_delta, 4),
+                "answer": resource_key,
+                "sensitivity_factor": sens["specific"],
+                "dim_weight": dim_w,
+            })
         base_global = weights["global_resource_to_recover"].get(answers.get("Q12", "B"), 0.0)
-        q12_delta = base_global * sens["global"]
-        multiplier *= 1 + q12_delta
-        contrib_records.append({
-            "source": "Q12",
-            "delta": round(q12_delta, 4),
-            "answer": answers.get("Q12"),
-            "sensitivity_factor": sens["global"],
-        })
-    if dimension in ("reach", "paths"):
+        q12_delta = base_global * sens["global"] * dim_w
+        if q12_delta != 0 or dimension == "recover":
+            multiplier *= 1 + q12_delta
+            contrib_records.append({
+                "source": "Q12",
+                "delta": round(q12_delta, 4),
+                "answer": answers.get("Q12"),
+                "sensitivity_factor": sens["global"],
+                "dim_weight": dim_w,
+            })
+    if dimension in ("reach", "paths", "correct"):
         ai_delta = _resolve_ai_impact(weights, ai_impact_level, ability_level, dimension)
         if ai_delta != 0:
             multiplier *= 1 + ai_delta
@@ -377,18 +389,64 @@ def _compute_tie_break_score(major_result: dict, weights_vec: dict[str, float]) 
     return sum(weights_vec.get(dim, 0.0) * dims[dim]["adjusted"] for dim in DIMENSION_KEYS)
 
 
-def _appetite_sort_key(
-    major_result: dict, weights_vec: dict[str, float] | None,
-) -> tuple:
-    """Build sort key: primary by total desc, secondary by weighted tie-break desc.
+def _band_index(total: float, pct: float) -> int:
+    """Bucket a total into log-spaced relative bands of width ~pct.
 
-    When weights_vec is None (contradiction or missing config), the tie-break
-    component is 0 so Python's stable sort preserves input order on ties.
+    Two totals within roughly `pct` relative distance land in the same band
+    (modulo boundary effects), making them eligible for personal_fit reordering.
+    """
+    if total <= 0 or pct <= 0:
+        return 0
+    return math.floor(math.log(total) / math.log(1 + pct))
+
+
+def _appetite_sort_key(major_result: dict, band_pct: float) -> tuple:
+    """Build rank key: objective band (by total) first, personal_fit within band.
+
+    v3.16: appetite no longer fires only on exact ties. Majors whose totals
+    fall in the same ~pct-wide relative band are ordered by personal_fit
+    (appetite-weighted Σ); across bands, pure total dominates. The displayed
+    total/grade are unaffected — appetite only reorders near-equal majors.
+    For contradiction / missing config, personal_fit is 0 so a same-band group
+    keeps stable input order.
     """
     total = major_result["total"]
-    if weights_vec is None:
-        return (-total, 0.0)
-    return (-total, -_compute_tie_break_score(major_result, weights_vec))
+    pf = major_result.get("personal_fit", 0.0)
+    return (-_band_index(total, band_pct), -pf)
+
+
+def _appetite_effect(
+    majors_result: dict, algorithm_rank: list[str], band_pct: float,
+) -> tuple[bool, str | None, str | None]:
+    """Check whether the appetite tie-break actually reordered the majors.
+
+    Re-sorts on the objective band alone (personal_fit neutralized) while keeping
+    the same stable input-order fallback as ``algorithm_rank``. The only difference
+    between the two orderings is the personal_fit key, so a mismatch isolates the
+    risk appetite's real effect on the ranking — letting the report avoid claiming
+    a tie-break "decided" the order when it was in fact a no-op.
+
+    Args:
+        majors_result: Per-major result dicts keyed by name (insertion == input order).
+        algorithm_rank: Final appetite-aware ranking produced by ``compute_all``.
+        band_pct: Relative band width used by ``_band_index``.
+
+    Returns:
+        Tuple ``(changed, promoted, demoted)``. When ``changed`` is True, ``promoted``
+        is the major appetite pushed up and ``demoted`` the one it leapfrogged at the
+        first differing position; both are None when the ranking was unchanged.
+    """
+    input_order = list(majors_result.keys())
+    baseline = sorted(
+        input_order,
+        key=lambda n: -_band_index(majors_result[n]["total"], band_pct),
+    )
+    if baseline == algorithm_rank:
+        return False, None, None
+    for promoted, demoted in zip(algorithm_rank, baseline):
+        if promoted != demoted:
+            return True, promoted, demoted
+    return True, None, None
 
 
 def _apply_admission_blend(adi_total: float, admission_score: float | None,
@@ -435,6 +493,11 @@ def compute_major(
     adi_total = round(adi_total, 2)
     final_total, blend_factor = _apply_admission_blend(adi_total, admission_score, weights)
     bottleneck = min(DIMENSION_KEYS, key=lambda d: dim_results[d]["adjusted"])
+    tie_weights = _resolve_tie_break_weights(appetite, weights)
+    personal_fit = (
+        round(_compute_tie_break_score({"dimensions": dim_results}, tie_weights), 3)
+        if tie_weights else 0.0
+    )
     return {
         "name": major_name,
         "source": source,
@@ -442,6 +505,7 @@ def compute_major(
         "ai_impact": ai_impact_level,
         "ability_level": ability_level,
         "risk_appetite": appetite,
+        "personal_fit": personal_fit,
         "admission_score": admission_score,
         "admission_blend_factor": blend_factor,
         "adi_total": adi_total,
@@ -564,11 +628,15 @@ def compute_all(input_data: dict) -> dict:
     ]
     appetite = _resolve_risk_appetite(answers, weights)
     tie_break_weights = _resolve_tie_break_weights(appetite, weights)
+    band_pct = weights.get("appetite_rank_band", {}).get("pct", 0.05)
     algorithm_rank = sorted(
         majors_result.keys(),
-        key=lambda n: _appetite_sort_key(majors_result[n], tie_break_weights),
+        key=lambda n: _appetite_sort_key(majors_result[n], band_pct),
     )
     tau = kendall_tau(subjective_rank, algorithm_rank)
+    appetite_changed, appetite_promoted, appetite_demoted = _appetite_effect(
+        majors_result, algorithm_rank, band_pct,
+    )
 
     meta = {
         "session_inferred_majors": session_inferred,
@@ -580,6 +648,9 @@ def compute_all(input_data: dict) -> dict:
         "risk_appetite": appetite,
         "appetite_contradiction": appetite == "contradiction",
         "appetite_tie_break_weights": tie_break_weights,
+        "appetite_changed_order": appetite_changed,
+        "appetite_promoted": appetite_promoted,
+        "appetite_demoted": appetite_demoted,
         "admission_scores_used": bool(admission_scores),
     }
     excluded = {e["name"] for e in majors_input}

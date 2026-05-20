@@ -548,16 +548,21 @@ def _tie_break_overrides() -> dict:
     hit different appetite profiles, with NO dim ≥ 4 to avoid clamping —
     ensures totals are exactly equal post-personalization so tie-break fires.
 
-    Profiles (all base product = 1×4×1×3 = 12 in some permutation):
+    Profiles (all base product = 12, no dim ≥ 4 to avoid clamping):
       A_PURE:  high reach + high recover (A's two-dim profile)
       C_PURE:  high paths + high correct (C's two-dim profile)
       B_MIXED: moderate paths + correct + recover (B's three-dim profile)
+
+    Note (v3.11): after Q13 removed paths half (paths_mult ≠ reach_mult), the
+    previous B_MIXED (3,1,2,2) drifted to 17.69 vs A/C's 17.70 due to staged
+    rounding. New (2,1,3,2) preserves "reach弱 + 三维均衡" semantics while
+    yielding exact 17.70 under all-B answers, so tie-break can fire.
     """
     base = {"resource_sensitivity": "default", "ai_impact": "neutral"}
     return {
         "A_PURE":  {"paths": 1, "reach": 4, "correct": 1, "recover": 3, **base},
         "C_PURE":  {"paths": 4, "reach": 1, "correct": 3, "recover": 1, **base},
-        "B_MIXED": {"paths": 3, "reach": 1, "correct": 2, "recover": 2, **base},
+        "B_MIXED": {"paths": 2, "reach": 1, "correct": 3, "recover": 2, **base},
     }
 
 
@@ -597,9 +602,9 @@ def test_tie_break_weights_loaded_correctly_per_appetite():
     behavior tests below verify it sorts as intended."""
     expected = {
         ("A", "A"): ("strong_averse",  {"paths": 0.00, "reach": 0.50, "correct": 0.00, "recover": 0.50}),
-        ("A", "B"): ("averse",         {"paths": 0.10, "reach": 0.35, "correct": 0.10, "recover": 0.45}),
-        ("B", "B"): ("neutral",        {"paths": 0.34, "reach": 0.00, "correct": 0.33, "recover": 0.33}),
-        ("C", "B"): ("seeking",        {"paths": 0.45, "reach": 0.00, "correct": 0.45, "recover": 0.10}),
+        ("A", "B"): ("averse",         {"paths": 0.09, "reach": 0.38, "correct": 0.09, "recover": 0.44}),
+        ("B", "B"): ("neutral",        {"paths": 0.30, "reach": 0.10, "correct": 0.30, "recover": 0.30}),
+        ("C", "B"): ("seeking",        {"paths": 0.44, "reach": 0.03, "correct": 0.44, "recover": 0.09}),
         ("C", "C"): ("strong_seeking", {"paths": 0.50, "reach": 0.00, "correct": 0.50, "recover": 0.00}),
     }
     for (q01, q18), (apt, w) in expected.items():
@@ -707,7 +712,7 @@ def test_admission_score_blend_perfect_match_preserves_adi():
 
 
 def test_admission_score_blend_zero_match_dampens_adi():
-    """admission_score=0 → final = ADI × min_factor (0.7)。"""
+    """admission_score=0 → final = ADI × min_factor (0.5, v3.15)。"""
     base_input = {
         "majors": [
             {"rank": 1, "name": "计算机类 / 软件工程", "resource": "C"},
@@ -724,9 +729,9 @@ def test_admission_score_blend_zero_match_dampens_adi():
     zero_blend = compute_all({**base_input, "_admission_scores": {"计算机类 / 软件工程": 0.0}})
     cs_no = no_blend["majors"]["计算机类 / 软件工程"]
     cs_zero = zero_blend["majors"]["计算机类 / 软件工程"]
-    assert cs_zero["admission_blend_factor"] == 0.7
+    assert cs_zero["admission_blend_factor"] == 0.5
     # Round to handle float precision
-    expected = round(cs_no["total"] * 0.7, 2)
+    expected = round(cs_no["total"] * 0.5, 2)
     assert abs(cs_zero["total"] - expected) < 0.5  # 容差 0.5 分
 
 
@@ -749,8 +754,8 @@ def test_admission_score_does_not_alter_adi_total_field():
     cs = result["majors"]["计算机类 / 软件工程"]
     # adi_total 应大于 final total
     assert cs["adi_total"] > cs["total"]
-    # blend_factor = 0.7 + 0.3 × 0.5 = 0.85
-    assert cs["admission_blend_factor"] == 0.85
+    # blend_factor = 0.5 + 0.5 × 0.5 = 0.75 (v3.15)
+    assert cs["admission_blend_factor"] == 0.75
 
 
 # ---------- alignment lint (v2.0) ----------

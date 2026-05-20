@@ -1,7 +1,7 @@
 {
   "_meta": {
-    "version": "3.2.0",
-    "date": "2026-05-18",
+    "version": "3.16.0",
+    "date": "2026-05-19",
     "doc": "scoring_model.md",
     "format": "trait_to_dim[question_id][answer_key][dimension] = multiplier_delta; final multiplier = product(1 + delta)",
     "changes_v1_1": "Q12 moved out of trait_to_dim; per-major resource_sensitivity modulates Q3/Q5/Q7 (specific) and Q12 (global)",
@@ -28,14 +28,16 @@
     "changes_v3_5": "soft_thresholds 全量重制为「passing-grade + 同名主业 specialty」+ favorite-subject L1 skip。背景：v3_3 把 ≥80% 阈值压到 75% 仍然过严——陕西用户 物理=70 / 化学=70 / 生物=64 全 STEM 偏弱，6 个工科（电子信息/自动化/电气/机械/土木/物理）齐刷刷掉到 not_recommended，与其'物化生且喜欢物理'的明确意图冲突。诊断结论：L1 当前的语义是'优选线'（70-80%），应当是'及格线'（60%）；偏科/相对短板已有 L2/L4 兜底，L1 不需要再当第二道窄门。改动（数据+代码）：(1) majors_admission_2024.json 全量重写 71 条 soft_thresholds——默认 60（100制）/ 90（150制），7 个同名主业 specialty bump：数学/应用数学/统计学→数学=120、物理→物理=80、化学→化学=80、生物科学→生物=80、汉语言文学→语文=120、英语/外语→外语=120；55 条数值变动（多数下调，namesake 上调）；(2) admission_recommender.soft_filter Layer 1 加 favorite_subjects skip——学生喜欢某科目时该科阈值不查（理由：动机预测能力比 5 分原始分 floor 强），L2/L4 不变继续生效；(3) Layer 1 docstring 写入新政策；(4) 新增测试 test_soft_filter_l1_skipped_for_favorite_subject 锁住 favorite-skip 行为。结果：陕西场景下工科 6 个专业从 not_recommended 升回 strong（物理是 favorite，L1 跳过；语数外仍贡献高 fit），文科类仍被 L4 拦在 not_recommended。81/81 测试绿。",
     "changes_v3_6": "理综/文综 分科满分归一化前置到输入层（用户提醒：全国卷传统理综 = 物 110 + 化 100 + 生 90，文综三科各 100；不是后端默认的全 /100）。背景：旧代码 _SUBJECT_MAX 只识别 语文/数学/外语=150、理综/文综=300，电子物理/化学/生物一律按 _ELECTIVE_MAX=100 处理。mode=traditional + track=理 学生若直接报「物理=95」，后端会按 95/100=0.95 算（实际是 95/110=0.864），soft_thresholds Layer 1 物理 namesake=80 阈值会被错误地通过（86 vs 实际 86 没差，但 75 应该不通过却会通过）。诊断：后端默认 /100 是新高考契约（3+1+2/3+3 选考确实都是 100 制），不该改；该改的是输入层在拼 student.json 之前先把理综裸数字按 110/100/90 归一回 /100。改动（纯 SKILL.md 文档，零代码零数据改动）：(1) Step 1a 提示语加一行说明 mode=traditional 该改报 6 科原始分含 110/100/90 分配；(2) 新增 Step 1a' 「成绩归一化（写 student.json 前必做）」小节——定义后端契约（语数外 /150、其他一律 /100），4 条归一规则按顺序判断（X/Y 显式 > traditional+理 裸数字 > traditional+文 裸数字 > 新高考裸数字），强制 echo 转换结果给用户确认（错误归一比不归一更糟），3 条反例 anti-pattern；(3) Option A 方案——零后端改动，所有 mode-aware 缩放都在 prompt 层完成，backend _SUBJECT_MAX 保持单一刻度契约。zero code/test churn；81/81 测试绿。备注：以 2026 年实际情况看，31 省全部已切到 3+1+2/3+3（西藏/新疆/青海 第五批 2025），mode=traditional 几乎只服务历史回放场景，但 1 个 test_admission 测试还在用，且 JSON 71 个 majors 还带 traditional_track 元数据，证明此路径仍是 supported contract，不能假设永远走不到。",
     "changes_v3_8": "CS 族（计算机类/软件工程 + 信息安全/网络工程）物理依赖去权重 + 去阈值。背景：v2.1 时把化学权重 0.20→0.10、空出 0.10 加到数学+物理，结构是 数学 0.40 / 物理 0.30 / 外语 0.15 / 语文 0.15；soft_thresholds 含 数学=90、物理=60。用户提议进一步降物理权重：本科 CS 核心课是离散数学/算法/数据结构/编译/操作系统/数据库——数学占比远超物理；大学物理虽是大一必修但在毕业要求中权重小，且高考物理偏弱不影响 CS 路径走通。诊断：把 物理 0.30 → 0.20、数学 0.40 → 0.50（差 0.10 全转给数学，与 v2.1 调整风格一致），同时删除 soft_thresholds::物理=60（v3.5 baseline 已说阈值是 passing-grade floor，CS 物理不需要再卡 60 这个底）。注意：保留 required_electives_all=[\"化学\"] 不动——招生硬规则是 985/211 真实要求，不是我们的判断。改动（纯数据）：(1) majors_admission_2024.json 两个专业 key_subjects 同步更新（已 mirror 自 v2.1），sum 保持 = 1.0；(2) soft_thresholds 各删除 1 条 物理 60。零代码、零测试改动；预期 84/84 仍绿。备注：信息安全是 CS 族 mirror 历来同步改，这次也一致改两个。",
-    "changes_v3_7": "favorite_subjects 从「二元 skip」升级为「连续 20% buffer」+ L2 同样获得 buffer 优待（用户提议：喜欢某科目 → 该科目的 L1 阈值和 L2 权重门槛都应放宽 20%）。背景：v3.5 设计 L1 为 favorite 100% skip——意图是把高动机科目从「合格分门槛」中豁免，但这种二元行为有两个问题：(a) 喜欢但分数极低（如喜欢化学但化学 40 分）也无脑放过，背离阈值本身的合规校验意图；(b) L2 相对短板拦截完全没有 favorite 优待，导致用户喜欢但分数偏低的科目（如陕西用户 物理 64 + 喜欢物理）仍被 L2 一刀切剔除，与「喜欢=有动力补足」的直觉冲突。诊断：把 favorite 优待从「二元 skip」改为「连续 buffer」更精细——L1 阈值 ×0.80（学生分 ≥ 阈值×0.80 即通过，比阈值低 20% 还在容忍范围）、L2 权重门槛 ×1.20（即 0.25→0.30，权重 0.25-0.29 的边缘 key_subject 不再触发短板检测）、L2 学生归一额外 +0.05 buffer（同时让分数边缘的喜欢科目能再多 0.05 容忍）。改动（数据+代码+测试）：(1) weights.json::soft_filter_relative 新增 3 个参数 favorite_l1_threshold_buffer=0.20 / favorite_l2_weights_buffer=0.20 / favorite_l2_norm_buffer=0.05，_doc 同步说明；(2) admission_recommender._DEFAULT_SOFT_FILTER_RELATIVE 加 3 项默认值，_resolve_soft_filter_relative 解析新键；(3) soft_filter L1 从 favorite skip 改为 effective_threshold = threshold × (1 - favorite_l1_threshold_buffer)，分数低于 effective 才 reject，reject 消息显示生效阈值；(4) soft_filter L2 favorite 命中时 effective_weights_threshold = base × (1 + favorite_l2_weights_buffer) 且 effective_norm = student_norm + favorite_l2_norm_buffer，docstring 重写说明 favorite 优待机制；(5) tests/test_admission.py 既有 test_soft_filter_l1_skipped_for_favorite_subject 重命名 + 拆分为两个：通过情形（55 ≥ 48）和拒绝情形（45 < 48），证明 buffer 而非 skip；新增 test_soft_filter_l2_favorite_relaxes_weights_threshold（权重 0.25-0.29 范围 favorite 命中应不触发）+ test_soft_filter_l2_favorite_adds_norm_buffer（归一分数边缘 favorite 应享 +0.05 buffer）。SKILL.md Step 1a 加一句说明 favorite 的真正影响（不再是完全免检，是放宽 20%）。zero data churn（majors_admission_2024.json 不变）；预期 82+ 测试绿（原 81 + 至少 2 个新增 + 1 个重命名）。"
+    "changes_v3_7": "favorite_subjects 从「二元 skip」升级为「连续 20% buffer」+ L2 同样获得 buffer 优待（用户提议：喜欢某科目 → 该科目的 L1 阈值和 L2 权重门槛都应放宽 20%）。背景：v3.5 设计 L1 为 favorite 100% skip——意图是把高动机科目从「合格分门槛」中豁免，但这种二元行为有两个问题：(a) 喜欢但分数极低（如喜欢化学但化学 40 分）也无脑放过，背离阈值本身的合规校验意图；(b) L2 相对短板拦截完全没有 favorite 优待，导致用户喜欢但分数偏低的科目（如陕西用户 物理 64 + 喜欢物理）仍被 L2 一刀切剔除，与「喜欢=有动力补足」的直觉冲突。诊断：把 favorite 优待从「二元 skip」改为「连续 buffer」更精细——L1 阈值 ×0.80（学生分 ≥ 阈值×0.80 即通过，比阈值低 20% 还在容忍范围）、L2 权重门槛 ×1.20（即 0.25→0.30，权重 0.25-0.29 的边缘 key_subject 不再触发短板检测）、L2 学生归一额外 +0.05 buffer（同时让分数边缘的喜欢科目能再多 0.05 容忍）。改动（数据+代码+测试）：(1) weights.json::soft_filter_relative 新增 3 个参数 favorite_l1_threshold_buffer=0.20 / favorite_l2_weights_buffer=0.20 / favorite_l2_norm_buffer=0.05，_doc 同步说明；(2) admission_recommender._DEFAULT_SOFT_FILTER_RELATIVE 加 3 项默认值，_resolve_soft_filter_relative 解析新键；(3) soft_filter L1 从 favorite skip 改为 effective_threshold = threshold × (1 - favorite_l1_threshold_buffer)，分数低于 effective 才 reject，reject 消息显示生效阈值；(4) soft_filter L2 favorite 命中时 effective_weights_threshold = base × (1 + favorite_l2_weights_buffer) 且 effective_norm = student_norm + favorite_l2_norm_buffer，docstring 重写说明 favorite 优待机制；(5) tests/test_admission.py 既有 test_soft_filter_l1_skipped_for_favorite_subject 重命名 + 拆分为两个：通过情形（55 ≥ 48）和拒绝情形（45 < 48），证明 buffer 而非 skip；新增 test_soft_filter_l2_favorite_relaxes_weights_threshold（权重 0.25-0.29 范围 favorite 命中应不触发）+ test_soft_filter_l2_favorite_adds_norm_buffer（归一分数边缘 favorite 应享 +0.05 buffer）。SKILL.md Step 1a 加一句说明 favorite 的真正影响（不再是完全免检，是放宽 20%）。zero data churn（majors_admission_2024.json 不变）；预期 82+ 测试绿（原 81 + 至少 2 个新增 + 1 个重命名）。",
+    "changes_v3_15": "admission_blend floor 0.7→0.5 (range 0.3→0.5，满分仍=1.0)，把折扣区间从 [0.7,1.0] 拓到 [0.5,1.0]——旧 floor 下高考分几乎是装饰(admission 0→1 仅 ±30%)，新 floor 让录取匹配能真正移动排名。2 个 blend 断言更新(0.7→0.5、0.85→0.75)。case A/B 不传 admission_score 故不受影响。84/84 绿。",
+    "changes_v3_16": "三处结构扩展：(#5) 新增 resource_dim_weights(recover 1.0/reach·paths 0.5/correct 0.25)，资源 delta 作用于全 4 维(删 compute_dimension 的 recover-only gate)；(#6) ai_impact_levels 每格加 correct 列(仅 boost 域非零)，gate 改 reach/paths/correct——correct 只在 boost 域极化(AI 是该域核心工具)；(#4) 新增 appetite_rank_band.pct=0.05，appetite 从 exact-tie 升级为 ε-band 排名，compute_major 输出 personal_fit(=旧 tie_break_score)，**显示的 total/grade 不变**(保留 v1.5 客观语义)。核心保险丝 test_personality_cannot_erase_baseline_lock：艺术 assertion 50→100(decisive 专业资源杠杆最大,baseline lock 仍成立<150)。新增 2 个 ε-band 测试。86/86 绿。"
   },
   "trait_to_dim": {
     "Q08": {
-      "A": {"reach": 0.20},
-      "B": {"reach": 0.05},
-      "C": {"reach": -0.10},
-      "D": {"reach": -0.25}
+      "A": {"reach": 0.20, "correct": 0.10},
+      "B": {"reach": 0.05, "correct": 0.05},
+      "C": {"reach": -0.10, "correct": -0.05},
+      "D": {"reach": -0.25, "correct": -0.10}
     },
     "Q09": {
       "A": {"reach": 0.20},
@@ -56,16 +58,16 @@
       "D": {"correct": -0.25}
     },
     "Q13": {
-      "A": {"reach": 0.15, "paths": 0.10},
-      "B": {"reach": 0.05, "paths": 0.05},
-      "C": {"reach": -0.10, "paths": -0.05},
-      "D": {"reach": -0.20, "paths": -0.15}
+      "A": {"reach": 0.15},
+      "B": {"reach": 0.05},
+      "C": {"reach": -0.10},
+      "D": {"reach": -0.20}
     },
     "Q14": {
-      "A": {"paths": 0.25},
-      "B": {"paths": 0.10},
-      "C": {"paths": -0.05},
-      "D": {"paths": -0.15}
+      "A": {"paths": 0.25, "reach": 0.10, "correct": 0.10},
+      "B": {"paths": 0.10, "reach": 0.05, "correct": 0.05},
+      "C": {"paths": -0.05, "reach": -0.05, "correct": -0.05},
+      "D": {"paths": -0.15, "reach": -0.10, "correct": -0.10}
     }
   },
   "resource_to_recover": {
@@ -88,6 +90,13 @@
     "high":     {"specific": 1.5, "global": 1.3},
     "decisive": {"specific": 2.0, "global": 1.5}
   },
+  "resource_dim_weights": {
+    "_doc": "v3.16：Q3/5/7(specific) + Q12(global) 资源 delta 作用于全部 4 维度,各维按本权重二次缩放后再乘 resource_sensitivity。语义:资源最帮'兜底'(recover 满额),其次'落地就业+拓宽行业'(reach/paths 半额),对'换技能方向'帮助最小(correct ¼)。最终 delta = base_resource × sensitivity × dim_weight。recover=1.0 保持 v1.1 行为不变。",
+    "recover": 1.0,
+    "reach": 0.5,
+    "paths": 0.5,
+    "correct": 0.25
+  },
   "ability_index_thresholds": {
     "_doc": "Maps avg(Q8,Q9,Q10,Q11) on A=4/B=3/C=2/D=1 scale to ability index. avg >= threshold -> level.",
     "high":     3.5,
@@ -96,30 +105,30 @@
     "very_low": 0
   },
   "ai_impact_levels": {
-    "_doc": "Polarization matrix: ai_impact_levels[major.ai_impact][ability_index][dimension] = additive delta. Applied to reach and paths only (not correct/recover). Tune here without touching algorithm code.",
+    "_doc": "Polarization matrix: ai_impact_levels[major.ai_impact][ability_index][dimension] = additive delta. Applied to reach, paths AND correct (v3.16; recover still excluded). correct 极化只在 boost 域非零——AI 是这些域的核心生产工具,高能力者用它快速自学换方向(correct↑)、被替代者更难翻身(correct↓);在 disrupted/threatened/neutral 域,换方向能力由通用能力(已在 Q10/Q11→correct)决定,不随该域 AI 状态变化,故 correct delta=0。correct 幅度取 reach 的约一半。Tune here without touching algorithm code.",
     "boost": {
-      "high":     {"reach": 0.20, "paths": 0.20},
-      "mid":      {"reach": 0.05, "paths": 0.10},
-      "low":      {"reach": -0.10, "paths": 0.00},
-      "very_low": {"reach": -0.25, "paths": -0.10}
+      "high":     {"reach": 0.20, "paths": 0.20, "correct": 0.10},
+      "mid":      {"reach": 0.05, "paths": 0.10, "correct": 0.05},
+      "low":      {"reach": -0.10, "paths": 0.00, "correct": -0.05},
+      "very_low": {"reach": -0.25, "paths": -0.10, "correct": -0.10}
     },
     "neutral": {
-      "high":     {"reach": 0.00, "paths": 0.00},
-      "mid":      {"reach": 0.00, "paths": 0.00},
-      "low":      {"reach": 0.00, "paths": 0.00},
-      "very_low": {"reach": 0.00, "paths": 0.00}
+      "high":     {"reach": 0.00, "paths": 0.00, "correct": 0.00},
+      "mid":      {"reach": 0.00, "paths": 0.00, "correct": 0.00},
+      "low":      {"reach": 0.00, "paths": 0.00, "correct": 0.00},
+      "very_low": {"reach": 0.00, "paths": 0.00, "correct": 0.00}
     },
     "disrupted": {
-      "high":     {"reach": 0.00, "paths": -0.05},
-      "mid":      {"reach": -0.05, "paths": -0.05},
-      "low":      {"reach": -0.15, "paths": -0.10},
-      "very_low": {"reach": -0.25, "paths": -0.15}
+      "high":     {"reach": 0.00, "paths": -0.05, "correct": 0.00},
+      "mid":      {"reach": -0.05, "paths": -0.05, "correct": 0.00},
+      "low":      {"reach": -0.15, "paths": -0.10, "correct": 0.00},
+      "very_low": {"reach": -0.25, "paths": -0.15, "correct": 0.00}
     },
     "threatened": {
-      "high":     {"reach": -0.10, "paths": -0.10},
-      "mid":      {"reach": -0.20, "paths": -0.15},
-      "low":      {"reach": -0.30, "paths": -0.20},
-      "very_low": {"reach": -0.40, "paths": -0.25}
+      "high":     {"reach": -0.10, "paths": -0.10, "correct": 0.00},
+      "mid":      {"reach": -0.20, "paths": -0.15, "correct": 0.00},
+      "low":      {"reach": -0.30, "paths": -0.20, "correct": 0.00},
+      "very_low": {"reach": -0.40, "paths": -0.25, "correct": 0.00}
     }
   },
   "state_global": {
@@ -128,13 +137,17 @@
     "C": -0.05
   },
   "appetite_tie_break_weights": {
-    "_doc": "v1.6 加权三角：每个 appetite 给 4 个维度一组权重，tie_break_score = Σ(w[dim] × adjusted[dim])，仅在 ADI total 完全相同时作为 secondary sort key。\n\n派生：A 稳定 → {reach, recover}；B 可调整 → {paths, recover, correct}；C 冲上限 → {paths, correct}。5 级线性插值 strong_averse=1.0A / averse=0.7A+0.3B / neutral=1.0B / seeking=0.3B+0.7C / strong_seeking=1.0C。每行权重和=1.0。v1.8：contradiction 行显式 all-zeros，语义为「矛盾信号下不偏好任何维」，加权和恒为 0，同分按 majors_input 稳定排序。",
+    "_doc": "v1.6 加权三角：每个 appetite 给 4 个维度一组权重，tie_break_score = Σ(w[dim] × adjusted[dim])，仅在 ADI total 完全相同时作为 secondary sort key。\n\n派生：A 稳定 → {reach, recover}；B 可调整 → {paths, reach, correct, recover}（v3.13 起 reach 0.10——reach 是地板型维度，权衡者也要就业，但权重最低以保留对'reach 极高其他全废'铁饭碗陷阱专业的警惕）；C 冲上限 → {paths, correct}。5 级线性插值 strong_averse=1.0A / averse=0.7A+0.3B / neutral=1.0B / seeking=0.3B+0.7C / strong_seeking=1.0C。每行权重和=1.0。v3.13：B 顶点加 reach 0.10 后重算 averse/seeking，使 reach 沿光谱 0.50→0.38→0.10→0.03→0.00 单调平滑（消除 v3.12 前 averse 0.35→neutral 0.00 的断崖）。v1.8：contradiction 行显式 all-zeros，语义为「矛盾信号下不偏好任何维」，加权和恒为 0，同分按 majors_input 稳定排序。",
     "strong_averse":  {"paths": 0.00, "reach": 0.50, "correct": 0.00, "recover": 0.50},
-    "averse":         {"paths": 0.10, "reach": 0.35, "correct": 0.10, "recover": 0.45},
-    "neutral":        {"paths": 0.34, "reach": 0.00, "correct": 0.33, "recover": 0.33},
-    "seeking":        {"paths": 0.45, "reach": 0.00, "correct": 0.45, "recover": 0.10},
+    "averse":         {"paths": 0.09, "reach": 0.38, "correct": 0.09, "recover": 0.44},
+    "neutral":        {"paths": 0.30, "reach": 0.10, "correct": 0.30, "recover": 0.30},
+    "seeking":        {"paths": 0.44, "reach": 0.03, "correct": 0.44, "recover": 0.09},
     "strong_seeking": {"paths": 0.50, "reach": 0.00, "correct": 0.50, "recover": 0.00},
     "contradiction":  {"paths": 0.00, "reach": 0.00, "correct": 0.00, "recover": 0.00}
+  },
+  "appetite_rank_band": {
+    "_doc": "v3.16：appetite 从 exact-tie tie-break 升级为 ε-band 排名因子。total 落在同一对数带（相对宽度 pct）的专业按 personal_fit（appetite 加权 Σ(w[dim]×adjusted[dim])）排序;跨带仍纯按 total 降序。pct=0.05 → 约 5% 相对差视为'势均力敌'。**显示的 ADI total 与难度档不受影响**——appetite 只重排势均力敌者并产出 personal_fit 子分,保留 v1.5 的'ADI 客观可比'语义。",
+    "pct": 0.05
   },
   "q1_q18_to_appetite": {
     "_doc": "(Q1, Q18) 答案组合 → risk_appetite level。键为 'Q1Q18' 拼接。v1.7：AC/CA 单独命名为 'contradiction'（v1.6 之前被归为 'neutral'，与 BB 同名导致下游无法区分真权衡 vs 矛盾）。'contradiction' 不在 appetite_tie_break_weights 表中，查表返回 None → 同分按 majors_input 稳定排序。仅用于 (a) compute_all 同分 tie-break 排序（按 appetite_tie_break_weights 查 4 维加权和），(b) 报告措辞，(c) 'contradiction' 触发交叉验证警告。不进入 ADI 乘法链。",
@@ -172,9 +185,9 @@
     "favorite_l2_norm_buffer": 0.05
   },
   "admission_blend": {
-    "_doc": "admission_score (0-1) 影响 ADI total 的方式：final = ADI × (min_factor + range × admission_score)。admission_score=1 完全匹配时不动 ADI；=0 时 ADI × min_factor。",
-    "min_factor": 0.7,
-    "range": 0.3
+    "_doc": "admission_score (0-1) 影响 ADI total 的方式：final = ADI × (min_factor + range × admission_score)。admission_score=1 完全匹配时不动 ADI；=0 时 ADI × min_factor。v3.15：min_factor 0.7→0.5（range 0.3→0.5 保持满分=1.0），把折扣区间从 [0.7,1.0] 拓到 [0.5,1.0]——录取匹配度从'装饰'升级为能真正移动排名的因子（旧 floor 下 admission 0→1 仅 ±30%，远小于单维度提升的 ±数倍）。",
+    "min_factor": 0.5,
+    "range": 0.5
   },
   "fit_score_weights": {
     "_doc": "推荐 score 各分项权重（暂仅实现 fit 子分；strength/preference/total 留待阶段 2）。",
