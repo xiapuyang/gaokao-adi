@@ -7,6 +7,7 @@ The engine is deterministic and does not make any LLM calls. Contextual
 inference for unknown majors (when the user picks "其他") happens in the
 conversation layer and is passed in as `_session_overrides`.
 """
+
 import argparse
 import json
 import math
@@ -139,7 +140,9 @@ def _resolve_baseline(
 
 
 def _collect_dim_deltas(
-    answers: dict, weights: dict, dimension: str,
+    answers: dict,
+    weights: dict,
+    dimension: str,
 ) -> list[tuple[str, float]]:
     """Collect every (question_id, delta) contribution to a dimension."""
     contributions: list[tuple[str, float]] = []
@@ -198,7 +201,10 @@ def ability_index(answers: dict, weights: dict) -> str:
 
 
 def _resolve_ai_impact(
-    weights: dict, ai_impact_level: str, ability_level: str, dimension: str,
+    weights: dict,
+    ai_impact_level: str,
+    ability_level: str,
+    dimension: str,
 ) -> float:
     """Look up the additive delta for a major's AI impact + user ability + dimension.
 
@@ -279,34 +285,44 @@ def compute_dimension(
         r_delta = base_specific * sens["specific"] * dim_w
         if r_delta != 0 or dimension == "recover":
             multiplier *= 1 + r_delta
-            contrib_records.append({
-                "source": "resource",
-                "delta": round(r_delta, 4),
-                "answer": resource_key,
-                "sensitivity_factor": sens["specific"],
-                "dim_weight": dim_w,
-            })
-        base_global = weights["global_resource_to_recover"].get(answers.get("Q12", "B"), 0.0)
+            contrib_records.append(
+                {
+                    "source": "resource",
+                    "delta": round(r_delta, 4),
+                    "answer": resource_key,
+                    "sensitivity_factor": sens["specific"],
+                    "dim_weight": dim_w,
+                }
+            )
+        base_global = weights["global_resource_to_recover"].get(
+            answers.get("Q12", "B"), 0.0
+        )
         q12_delta = base_global * sens["global"] * dim_w
         if q12_delta != 0 or dimension == "recover":
             multiplier *= 1 + q12_delta
-            contrib_records.append({
-                "source": "Q12",
-                "delta": round(q12_delta, 4),
-                "answer": answers.get("Q12"),
-                "sensitivity_factor": sens["global"],
-                "dim_weight": dim_w,
-            })
+            contrib_records.append(
+                {
+                    "source": "Q12",
+                    "delta": round(q12_delta, 4),
+                    "answer": answers.get("Q12"),
+                    "sensitivity_factor": sens["global"],
+                    "dim_weight": dim_w,
+                }
+            )
     if dimension in ("reach", "paths", "correct"):
-        ai_delta = _resolve_ai_impact(weights, ai_impact_level, ability_level, dimension)
+        ai_delta = _resolve_ai_impact(
+            weights, ai_impact_level, ability_level, dimension
+        )
         if ai_delta != 0:
             multiplier *= 1 + ai_delta
-            contrib_records.append({
-                "source": "ai_impact",
-                "delta": round(ai_delta, 4),
-                "impact_level": ai_impact_level,
-                "ability_level": ability_level,
-            })
+            contrib_records.append(
+                {
+                    "source": "ai_impact",
+                    "delta": round(ai_delta, 4),
+                    "impact_level": ai_impact_level,
+                    "ability_level": ability_level,
+                }
+            )
     state_delta = weights["state_global"].get(answers.get("Q15", "B"), 0.0)
     if state_delta != 0:
         multiplier *= 1 + state_delta
@@ -369,7 +385,8 @@ _resolve_risk_appetite = derive_risk_appetite
 
 
 def _resolve_tie_break_weights(
-    appetite: str, weights: dict,
+    appetite: str,
+    weights: dict,
 ) -> dict[str, float] | None:
     """Look up the 4-dim weight vector for tie-break scoring.
 
@@ -383,10 +400,14 @@ def _resolve_tie_break_weights(
     return {dim: float(entry.get(dim, 0.0)) for dim in DIMENSION_KEYS}
 
 
-def _compute_tie_break_score(major_result: dict, weights_vec: dict[str, float]) -> float:
+def _compute_tie_break_score(
+    major_result: dict, weights_vec: dict[str, float]
+) -> float:
     """Weighted sum over 4 dimensions: score = Σ(w[dim] × adjusted[dim])."""
     dims = major_result["dimensions"]
-    return sum(weights_vec.get(dim, 0.0) * dims[dim]["adjusted"] for dim in DIMENSION_KEYS)
+    return sum(
+        weights_vec.get(dim, 0.0) * dims[dim]["adjusted"] for dim in DIMENSION_KEYS
+    )
 
 
 def _band_index(total: float, pct: float) -> int:
@@ -416,7 +437,9 @@ def _appetite_sort_key(major_result: dict, band_pct: float) -> tuple:
 
 
 def _appetite_effect(
-    majors_result: dict, algorithm_rank: list[str], band_pct: float,
+    majors_result: dict,
+    algorithm_rank: list[str],
+    band_pct: float,
 ) -> tuple[bool, str | None, str | None]:
     """Check whether the appetite tie-break actually reordered the majors.
 
@@ -449,8 +472,9 @@ def _appetite_effect(
     return True, None, None
 
 
-def _apply_admission_blend(adi_total: float, admission_score: float | None,
-                            weights: dict) -> tuple[float, float]:
+def _apply_admission_blend(
+    adi_total: float, admission_score: float | None, weights: dict
+) -> tuple[float, float]:
     """Combine raw ADI with admission_score → final.
 
     Returns:
@@ -482,8 +506,15 @@ def compute_major(
     appetite = _resolve_risk_appetite(answers, weights)
     dim_results = {
         dim: compute_dimension(
-            major_name, dim, int(base_data[dim]), answers, resource_key, weights,
-            sensitivity_level, ai_impact_level, ability_level,
+            major_name,
+            dim,
+            int(base_data[dim]),
+            answers,
+            resource_key,
+            weights,
+            sensitivity_level,
+            ai_impact_level,
+            ability_level,
         )
         for dim in DIMENSION_KEYS
     }
@@ -491,12 +522,15 @@ def compute_major(
     for dim in DIMENSION_KEYS:
         adi_total *= dim_results[dim]["adjusted"]
     adi_total = round(adi_total, 2)
-    final_total, blend_factor = _apply_admission_blend(adi_total, admission_score, weights)
+    final_total, blend_factor = _apply_admission_blend(
+        adi_total, admission_score, weights
+    )
     bottleneck = min(DIMENSION_KEYS, key=lambda d: dim_results[d]["adjusted"])
     tie_weights = _resolve_tie_break_weights(appetite, weights)
     personal_fit = (
         round(_compute_tie_break_score({"dimensions": dim_results}, tie_weights), 3)
-        if tie_weights else 0.0
+        if tie_weights
+        else 0.0
     )
     return {
         "name": major_name,
@@ -566,8 +600,7 @@ def compute_extras(
             **(baseline.get("_user_additions", {}) or {}),
         }
         candidates = [
-            (name, None) for name in all_majors.keys()
-            if name not in excluded
+            (name, None) for name in all_majors.keys() if name not in excluded
         ]
         warning = (
             "未走推荐分支，无成绩与选科合规校验——下方推荐仅按 ADI 总分排序，"
@@ -578,7 +611,12 @@ def compute_extras(
     for name, adm_score in candidates:
         try:
             res = compute_major(
-                name, "C", answers, baseline, weights, session_overrides,
+                name,
+                "C",
+                answers,
+                baseline,
+                weights,
+                session_overrides,
                 admission_score=adm_score,
             )
             results.append(res)
@@ -616,16 +654,19 @@ def compute_all(input_data: dict) -> dict:
         resource_key = entry.get("resource", "C")
         admission_score = admission_scores.get(name)
         result = compute_major(
-            name, resource_key, answers, baseline, weights, session_overrides,
+            name,
+            resource_key,
+            answers,
+            baseline,
+            weights,
+            session_overrides,
             admission_score=admission_score,
         )
         majors_result[name] = result
         if result["source"] == "session_override":
             session_inferred.append(name)
 
-    subjective_rank = [
-        e["name"] for e in sorted(majors_input, key=lambda x: x["rank"])
-    ]
+    subjective_rank = [e["name"] for e in sorted(majors_input, key=lambda x: x["rank"])]
     appetite = _resolve_risk_appetite(answers, weights)
     tie_break_weights = _resolve_tie_break_weights(appetite, weights)
     band_pct = weights.get("appetite_rank_band", {}).get("pct", 0.05)
@@ -635,7 +676,9 @@ def compute_all(input_data: dict) -> dict:
     )
     tau = kendall_tau(subjective_rank, algorithm_rank)
     appetite_changed, appetite_promoted, appetite_demoted = _appetite_effect(
-        majors_result, algorithm_rank, band_pct,
+        majors_result,
+        algorithm_rank,
+        band_pct,
     )
 
     meta = {

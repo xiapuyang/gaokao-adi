@@ -118,16 +118,17 @@ gaokao-adi/
 ## 开发与测试
 
 ```bash
-# 用 uv（推荐，自动选对 Python 版本）
-uv run --with pytest python -m pytest
+# 用 uv（推荐，自动选对 Python 版本；与 CI 一致）
+uv sync --group dev
+uv run pytest
 
-# 或自建虚拟环境
+# 或自建虚拟环境（不依赖 uv）
 python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
+pip install pytest pytest-cov ruff pre-commit
 pytest
 ```
 
-当前测试套件：**93 passed**。
+当前测试套件：**93 passed**。提交前 `pre-commit run --all-files` 会跑 ruff + 各项检查。
 
 ---
 

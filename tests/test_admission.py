@@ -7,6 +7,7 @@ Covers:
 - risk_appetite derivation (Q1+Q18 matrix incl. contradiction → neutral)
 - admission_score blend factor on ADI total
 """
+
 import json
 from pathlib import Path
 
@@ -14,14 +15,13 @@ import pytest
 
 from scripts.admission_recommender import (
     StudentProfile,
-    derive_risk_appetite,
     fit_score,
     is_eligible,
     load_admission,
     recommend,
     soft_filter,
 )
-from scripts.score_engine import compute_all, load_weights
+from scripts.score_engine import compute_all, derive_risk_appetite, load_weights
 
 
 @pytest.fixture
@@ -40,8 +40,17 @@ def majors(admission_data) -> dict:
 def test_history_student_blocked_from_cs(majors):
     """3+1+2 模式选历史 → 报 CS 应硬过滤拒绝（CS required_primary=物理）。"""
     student = StudentProfile(
-        province="广东", mode="3+1+2", electives=["历史", "政治", "地理"],
-        scores={"语文": 120, "数学": 130, "外语": 130, "历史": 85, "政治": 82, "地理": 80},
+        province="广东",
+        mode="3+1+2",
+        electives=["历史", "政治", "地理"],
+        scores={
+            "语文": 120,
+            "数学": 130,
+            "外语": 130,
+            "历史": 85,
+            "政治": 82,
+            "地理": 80,
+        },
     )
     ok, reason = is_eligible(student, majors["计算机类 / 软件工程"])
     assert ok is False
@@ -51,8 +60,17 @@ def test_history_student_blocked_from_cs(majors):
 def test_physics_chemistry_student_passes_cs(majors):
     """3+1+2 物化生 → 报 CS 应通过。"""
     student = StudentProfile(
-        province="广东", mode="3+1+2", electives=["物理", "化学", "生物"],
-        scores={"语文": 110, "数学": 140, "外语": 135, "物理": 90, "化学": 88, "生物": 85},
+        province="广东",
+        mode="3+1+2",
+        electives=["物理", "化学", "生物"],
+        scores={
+            "语文": 110,
+            "数学": 140,
+            "外语": 135,
+            "物理": 90,
+            "化学": 88,
+            "生物": 85,
+        },
     )
     ok, reason = is_eligible(student, majors["计算机类 / 软件工程"])
     assert ok is True, f"应通过但被拒：{reason}"
@@ -61,8 +79,17 @@ def test_physics_chemistry_student_passes_cs(majors):
 def test_clinical_requires_chem_bio(majors):
     """临床医学需要化学+生物。仅物 → 拒。"""
     student = StudentProfile(
-        province="广东", mode="3+1+2", electives=["物理", "政治", "地理"],
-        scores={"语文": 110, "数学": 130, "外语": 125, "物理": 85, "政治": 70, "地理": 75},
+        province="广东",
+        mode="3+1+2",
+        electives=["物理", "政治", "地理"],
+        scores={
+            "语文": 110,
+            "数学": 130,
+            "外语": 125,
+            "物理": 85,
+            "政治": 70,
+            "地理": 75,
+        },
     )
     ok, reason = is_eligible(student, majors["临床医学"])
     assert ok is False
@@ -79,10 +106,14 @@ def test_traditional_liberal_blocked_from_engineering(majors):
 def test_no_requirement_majors_open_to_all(majors):
     """汉语言文学不限选科 → 任何组合都过。"""
     history_student = StudentProfile(
-        province="广东", mode="3+1+2", electives=["历史", "政治", "地理"],
+        province="广东",
+        mode="3+1+2",
+        electives=["历史", "政治", "地理"],
     )
     physics_student = StudentProfile(
-        province="广东", mode="3+1+2", electives=["物理", "化学", "生物"],
+        province="广东",
+        mode="3+1+2",
+        electives=["物理", "化学", "生物"],
     )
     assert is_eligible(history_student, majors["汉语言文学"])[0] is True
     assert is_eligible(physics_student, majors["汉语言文学"])[0] is True
@@ -94,23 +125,52 @@ def test_no_requirement_majors_open_to_all(majors):
 def test_fit_score_rewards_strong_key_subjects(majors):
     """数学/物理强 → CS FitScore 应较高。"""
     strong = StudentProfile(
-        province="广东", mode="3+1+2", electives=["物理", "化学", "生物"],
-        scores={"语文": 110, "数学": 145, "外语": 135, "物理": 95, "化学": 90, "生物": 85},
+        province="广东",
+        mode="3+1+2",
+        electives=["物理", "化学", "生物"],
+        scores={
+            "语文": 110,
+            "数学": 145,
+            "外语": 135,
+            "物理": 95,
+            "化学": 90,
+            "生物": 85,
+        },
     )
     weak = StudentProfile(
-        province="广东", mode="3+1+2", electives=["物理", "化学", "生物"],
-        scores={"语文": 110, "数学": 80, "外语": 90, "物理": 50, "化学": 55, "生物": 60},
+        province="广东",
+        mode="3+1+2",
+        electives=["物理", "化学", "生物"],
+        scores={
+            "语文": 110,
+            "数学": 80,
+            "外语": 90,
+            "物理": 50,
+            "化学": 55,
+            "生物": 60,
+        },
     )
     strong_fit = fit_score(strong, majors["计算机类 / 软件工程"])
     weak_fit = fit_score(weak, majors["计算机类 / 软件工程"])
-    assert strong_fit > weak_fit + 0.15, f"强弱差距应明显：strong={strong_fit:.2f} weak={weak_fit:.2f}"
+    assert strong_fit > weak_fit + 0.15, (
+        f"强弱差距应明显：strong={strong_fit:.2f} weak={weak_fit:.2f}"
+    )
 
 
 def test_fit_score_in_range(majors):
     """FitScore 在 [0, 1]。"""
     student = StudentProfile(
-        province="广东", mode="3+1+2", electives=["物理", "化学", "生物"],
-        scores={"语文": 150, "数学": 150, "外语": 150, "物理": 100, "化学": 100, "生物": 100},
+        province="广东",
+        mode="3+1+2",
+        electives=["物理", "化学", "生物"],
+        scores={
+            "语文": 150,
+            "数学": 150,
+            "外语": 150,
+            "物理": 100,
+            "化学": 100,
+            "生物": 100,
+        },
     )
     for major_info in majors.values():
         f = fit_score(student, major_info)
@@ -123,8 +183,17 @@ def test_fit_score_in_range(majors):
 def test_soft_filter_rejects_weak_key_subject(majors):
     """化学很低 → 临床医学应被软过滤拒绝。"""
     student = StudentProfile(
-        province="广东", mode="3+1+2", electives=["物理", "化学", "生物"],
-        scores={"语文": 110, "数学": 130, "外语": 120, "物理": 85, "化学": 50, "生物": 80},
+        province="广东",
+        mode="3+1+2",
+        electives=["物理", "化学", "生物"],
+        scores={
+            "语文": 110,
+            "数学": 130,
+            "外语": 120,
+            "物理": 85,
+            "化学": 50,
+            "生物": 80,
+        },
     )
     ok, reason = soft_filter(student, majors["临床医学"])
     assert ok is False
@@ -137,14 +206,30 @@ def test_soft_filter_l1_favorite_passes_within_20pct_buffer():
     物理阈值 60 → 生效 48；学生 物理=55 ≥ 48 → 应通过。
     非 favorite 同样的 55 < 60 应被拦（证明 buffer 而非旁观）。"""
     no_fav = StudentProfile(
-        province="陕西", mode="3+1+2", electives=["物理", "化学", "生物"],
-        scores={"语文": 120, "数学": 130, "外语": 120,
-                "物理": 55, "化学": 75, "生物": 75},
+        province="陕西",
+        mode="3+1+2",
+        electives=["物理", "化学", "生物"],
+        scores={
+            "语文": 120,
+            "数学": 130,
+            "外语": 120,
+            "物理": 55,
+            "化学": 75,
+            "生物": 75,
+        },
     )
     with_fav = StudentProfile(
-        province="陕西", mode="3+1+2", electives=["物理", "化学", "生物"],
-        scores={"语文": 120, "数学": 130, "外语": 120,
-                "物理": 55, "化学": 75, "生物": 75},
+        province="陕西",
+        mode="3+1+2",
+        electives=["物理", "化学", "生物"],
+        scores={
+            "语文": 120,
+            "数学": 130,
+            "外语": 120,
+            "物理": 55,
+            "化学": 75,
+            "生物": 75,
+        },
         favorite_subjects=["物理"],
     )
     synth_major = {
@@ -152,8 +237,13 @@ def test_soft_filter_l1_favorite_passes_within_20pct_buffer():
         "required_electives_all": [],
         "required_electives_any": [],
         "traditional_track": "理",
-        "key_subjects": {"数学": 0.40, "外语": 0.20,
-                         "语文": 0.20, "物理": 0.10, "化学": 0.10},
+        "key_subjects": {
+            "数学": 0.40,
+            "外语": 0.20,
+            "语文": 0.20,
+            "物理": 0.10,
+            "化学": 0.10,
+        },
         "soft_thresholds": {"物理": 60},
     }
     ok_no_fav, why_no_fav = soft_filter(no_fav, synth_major)
@@ -170,9 +260,17 @@ def test_soft_filter_l1_favorite_still_rejects_below_buffered_floor():
     物理阈值 60 → 生效 48；学生 物理=40 < 48 → 即使喜欢仍 reject。
     防止「喜欢化学但化学考 40」这种 v3.5 时代的伪通过情形复现。"""
     student = StudentProfile(
-        province="陕西", mode="3+1+2", electives=["物理", "化学", "生物"],
-        scores={"语文": 120, "数学": 130, "外语": 120,
-                "物理": 40, "化学": 75, "生物": 75},
+        province="陕西",
+        mode="3+1+2",
+        electives=["物理", "化学", "生物"],
+        scores={
+            "语文": 120,
+            "数学": 130,
+            "外语": 120,
+            "物理": 40,
+            "化学": 75,
+            "生物": 75,
+        },
         favorite_subjects=["物理"],
     )
     synth_major = {
@@ -180,8 +278,13 @@ def test_soft_filter_l1_favorite_still_rejects_below_buffered_floor():
         "required_electives_all": [],
         "required_electives_any": [],
         "traditional_track": "理",
-        "key_subjects": {"数学": 0.40, "外语": 0.20,
-                         "语文": 0.20, "物理": 0.10, "化学": 0.10},
+        "key_subjects": {
+            "数学": 0.40,
+            "外语": 0.20,
+            "语文": 0.20,
+            "物理": 0.10,
+            "化学": 0.10,
+        },
         "soft_thresholds": {"物理": 60},
     }
     ok, reason = soft_filter(student, synth_major)
@@ -196,14 +299,30 @@ def test_soft_filter_l2_favorite_relaxes_weights_threshold():
     权重 0.27 的 key_subject：base 触发（>= 0.25），favorite 命中不触发（< 0.30）。
     用真实短板分数确认两边判断到了同一条路径，只是 weights gate 不同。"""
     student_no_fav = StudentProfile(
-        province="陕西", mode="3+1+2", electives=["物理", "化学", "生物"],
-        scores={"语文": 140, "数学": 145, "外语": 140,
-                "物理": 60, "化学": 70, "生物": 70},
+        province="陕西",
+        mode="3+1+2",
+        electives=["物理", "化学", "生物"],
+        scores={
+            "语文": 140,
+            "数学": 145,
+            "外语": 140,
+            "物理": 60,
+            "化学": 70,
+            "生物": 70,
+        },
     )
     student_fav = StudentProfile(
-        province="陕西", mode="3+1+2", electives=["物理", "化学", "生物"],
-        scores={"语文": 140, "数学": 145, "外语": 140,
-                "物理": 60, "化学": 70, "生物": 70},
+        province="陕西",
+        mode="3+1+2",
+        electives=["物理", "化学", "生物"],
+        scores={
+            "语文": 140,
+            "数学": 145,
+            "外语": 140,
+            "物理": 60,
+            "化学": 70,
+            "生物": 70,
+        },
         favorite_subjects=["物理"],
     )
     synth_major = {
@@ -211,8 +330,7 @@ def test_soft_filter_l2_favorite_relaxes_weights_threshold():
         "required_electives_all": [],
         "required_electives_any": [],
         "traditional_track": "理",
-        "key_subjects": {"数学": 0.40, "物理": 0.27,
-                         "外语": 0.18, "语文": 0.15},
+        "key_subjects": {"数学": 0.40, "物理": 0.27, "外语": 0.18, "语文": 0.15},
         "soft_thresholds": {},
     }
     ok_no_fav, why_no_fav = soft_filter(student_no_fav, synth_major)
@@ -230,14 +348,30 @@ def test_soft_filter_l2_favorite_adds_norm_buffer():
     不起作用——只验证 norm buffer。学生 物理 归一刚好低于 gap_line 0.03，
     无 favorite 应拦；favorite +0.05 应通过。"""
     student_no_fav = StudentProfile(
-        province="陕西", mode="3+1+2", electives=["物理", "化学", "生物"],
-        scores={"语文": 135, "数学": 138, "外语": 135,
-                "物理": 65, "化学": 75, "生物": 75},
+        province="陕西",
+        mode="3+1+2",
+        electives=["物理", "化学", "生物"],
+        scores={
+            "语文": 135,
+            "数学": 138,
+            "外语": 135,
+            "物理": 65,
+            "化学": 75,
+            "生物": 75,
+        },
     )
     student_fav = StudentProfile(
-        province="陕西", mode="3+1+2", electives=["物理", "化学", "生物"],
-        scores={"语文": 135, "数学": 138, "外语": 135,
-                "物理": 65, "化学": 75, "生物": 75},
+        province="陕西",
+        mode="3+1+2",
+        electives=["物理", "化学", "生物"],
+        scores={
+            "语文": 135,
+            "数学": 138,
+            "外语": 135,
+            "物理": 65,
+            "化学": 75,
+            "生物": 75,
+        },
         favorite_subjects=["物理"],
     )
     synth_major = {
@@ -245,8 +379,7 @@ def test_soft_filter_l2_favorite_adds_norm_buffer():
         "required_electives_all": [],
         "required_electives_any": [],
         "traditional_track": "理",
-        "key_subjects": {"物理": 0.40, "数学": 0.30,
-                         "外语": 0.15, "语文": 0.15},
+        "key_subjects": {"物理": 0.40, "数学": 0.30, "外语": 0.15, "语文": 0.15},
         "soft_thresholds": {},
     }
     ok_no_fav, why_no_fav = soft_filter(student_no_fav, synth_major)
@@ -261,8 +394,17 @@ def test_soft_filter_disliked_conflict(majors):
     """讨厌化学但选了 CS（化学权重 0.20）→ 应该 OK（< 0.25 阈值）。
     讨厌化学但报临床（化学权重 0.25）→ 应被拒。"""
     student = StudentProfile(
-        province="广东", mode="3+1+2", electives=["物理", "化学", "生物"],
-        scores={"语文": 110, "数学": 130, "外语": 120, "物理": 85, "化学": 80, "生物": 80},
+        province="广东",
+        mode="3+1+2",
+        electives=["物理", "化学", "生物"],
+        scores={
+            "语文": 110,
+            "数学": 130,
+            "外语": 120,
+            "物理": 85,
+            "化学": 80,
+            "生物": 80,
+        },
         disliked_subjects=["化学"],
     )
     ok_cs, _ = soft_filter(student, majors["计算机类 / 软件工程"])
@@ -275,12 +417,20 @@ def test_soft_filter_layer2_catches_relative_pianke_in_math(majors):
     """v1.9 L2: 学生数学刚过 L1 阈值，其他科都很强 → 数学相对偏科 → L2 应拦截
     数学权重高的工科专业（电子信息工程：数学权重 0.3）。"""
     student = StudentProfile(
-        province="广东", mode="3+1+2", electives=["物理", "化学", "生物"],
+        province="广东",
+        mode="3+1+2",
+        electives=["物理", "化学", "生物"],
         # 语文 142/150=0.947, 数学 92/150=0.613, 外语 140/150=0.933
         # 物理 88/100=0.88, 化学 92/100=0.92, 生物 90/100=0.90
         # 自身均值 ≈ 0.866, gap_line=0.716；数学 0.613 < 0.716 → 偏科
-        scores={"语文": 142, "数学": 92, "外语": 140,
-                "物理": 88, "化学": 92, "生物": 90},
+        scores={
+            "语文": 142,
+            "数学": 92,
+            "外语": 140,
+            "物理": 88,
+            "化学": 92,
+            "生物": 90,
+        },
     )
     eei = majors["电子信息工程"]
     # L1 检查：物理 88≥80✓, 数学 92≥90✓, 化学 92≥65✓ → L1 过
@@ -294,10 +444,18 @@ def test_soft_filter_layer2_catches_relative_pianke_in_math(majors):
 def test_soft_filter_layer2_does_not_block_balanced_student(majors):
     """v1.9 L2: 均衡学生（所有 key_subjects 都在自身均值附近）不应被 L2 误伤。"""
     student = StudentProfile(
-        province="广东", mode="3+1+2", electives=["物理", "化学", "生物"],
+        province="广东",
+        mode="3+1+2",
+        electives=["物理", "化学", "生物"],
         # 全部归一化都在 0.8-0.95 之间，无明显偏科
-        scores={"语文": 130, "数学": 135, "外语": 125,
-                "物理": 88, "化学": 85, "生物": 85},
+        scores={
+            "语文": 130,
+            "数学": 135,
+            "外语": 125,
+            "物理": 88,
+            "化学": 85,
+            "生物": 85,
+        },
     )
     # 计算机：L1 数学≥95(135✓), 物理≥65(88✓), 化学≥65(85✓) → 全过；L2 应也过
     ok, _ = soft_filter(student, majors["计算机类 / 软件工程"])
@@ -310,11 +468,19 @@ def test_soft_filter_layer2_ignores_low_weight_subjects(majors):
     数学偏科 + 选汉语言文学（数学权重 < 0.25）→ L2 不查数学。
     用 3+3 模式避免触发 v2.5 L4 cross-track（3+3 无明确 track 信号）。"""
     student = StudentProfile(
-        province="北京", mode="3+3", electives=["物理", "化学", "生物"],
+        province="北京",
+        mode="3+3",
+        electives=["物理", "化学", "生物"],
         # 数学偏科（92/150=0.613）但是汉语言文学 key_subjects 不含数学
-        scores={"语文": 145, "数学": 92, "外语": 140,
-                "物理": 88, "化学": 92, "生物": 90,
-                "历史": 88},  # 汉语言可能用历史
+        scores={
+            "语文": 145,
+            "数学": 92,
+            "外语": 140,
+            "物理": 88,
+            "化学": 92,
+            "生物": 90,
+            "历史": 88,
+        },  # 汉语言可能用历史
     )
     chinese = majors["汉语言文学"]
     math_weight = chinese.get("key_subjects", {}).get("数学", 0)
@@ -331,11 +497,22 @@ def test_soft_filter_layer2_ignores_low_weight_subjects(majors):
 def test_fit_score_favorite_subject_bonus(majors):
     """v2.0: favorite_subject 命中 key_subjects 时按该 key_subject 权重缩放 bonus。"""
     base_student = StudentProfile(
-        province="广东", mode="3+1+2", electives=["物理", "化学", "生物"],
-        scores={"语文": 120, "数学": 130, "外语": 120, "物理": 95, "化学": 85, "生物": 88},
+        province="广东",
+        mode="3+1+2",
+        electives=["物理", "化学", "生物"],
+        scores={
+            "语文": 120,
+            "数学": 130,
+            "外语": 120,
+            "物理": 95,
+            "化学": 85,
+            "生物": 88,
+        },
     )
     with_fav_student = StudentProfile(
-        province="广东", mode="3+1+2", electives=["物理", "化学", "生物"],
+        province="广东",
+        mode="3+1+2",
+        electives=["物理", "化学", "生物"],
         scores=base_student.scores,
         favorite_subjects=["数学"],  # CS key_subjects 含 数学
     )
@@ -353,8 +530,17 @@ def test_fit_score_favorite_subject_bonus(majors):
 def test_fit_score_multiple_favorites_bonus(majors):
     """v1.9: 多个 favorite 命中应累加；上限 cap 1.0。"""
     student = StudentProfile(
-        province="广东", mode="3+1+2", electives=["物理", "化学", "生物"],
-        scores={"语文": 130, "数学": 145, "外语": 145, "物理": 99, "化学": 95, "生物": 95},
+        province="广东",
+        mode="3+1+2",
+        electives=["物理", "化学", "生物"],
+        scores={
+            "语文": 130,
+            "数学": 145,
+            "外语": 145,
+            "物理": 99,
+            "化学": 95,
+            "生物": 95,
+        },
         favorite_subjects=["数学", "物理", "外语"],
     )
     cs = majors["计算机类 / 软件工程"]
@@ -365,15 +551,19 @@ def test_fit_score_multiple_favorites_bonus(majors):
 def test_fit_score_favorite_not_in_key_subjects_no_bonus(majors):
     """v1.9: favorite 不在 key_subjects 中不该加 bonus。
     工商管理 key_subjects 不含物理 → favorite=[物理] 应无 bonus。"""
-    scores = {"语文": 130, "数学": 110, "外语": 120,
-              "物理": 95, "化学": 85, "生物": 88}
+    scores = {"语文": 130, "数学": 110, "外语": 120, "物理": 95, "化学": 85, "生物": 88}
     base_student = StudentProfile(
-        province="广东", mode="3+1+2", electives=["物理", "化学", "生物"],
+        province="广东",
+        mode="3+1+2",
+        electives=["物理", "化学", "生物"],
         scores=scores,
     )
     fav_student = StudentProfile(
-        province="广东", mode="3+1+2", electives=["物理", "化学", "生物"],
-        scores=scores, favorite_subjects=["物理"],
+        province="广东",
+        mode="3+1+2",
+        electives=["物理", "化学", "生物"],
+        scores=scores,
+        favorite_subjects=["物理"],
     )
     biz = majors["工商管理"]
     assert "物理" not in biz["key_subjects"]
@@ -390,17 +580,37 @@ def test_soft_filter_rejects_cross_track_humanities_for_li_track(majors):
     市场营销 数学=0.25 是触发点；会计学 数学=0.40 不触发；用户实际反馈的陕西物化生
     考生不应再看到 英语/新传/社会工作 类专业出现在 consider 档。"""
     student = StudentProfile(
-        province="陕西", mode="3+1+2", electives=["物理", "化学", "生物"],
-        scores={"语文": 130, "数学": 140, "外语": 130,
-                "物理": 70, "化学": 70, "生物": 64},
+        province="陕西",
+        mode="3+1+2",
+        electives=["物理", "化学", "生物"],
+        scores={
+            "语文": 130,
+            "数学": 140,
+            "外语": 130,
+            "物理": 70,
+            "化学": 70,
+            "生物": 64,
+        },
         favorite_subjects=["数学", "语文", "物理", "生物"],
     )
     marketing = majors["市场营销"]
     accounting = majors["会计学"]
-    assert max(w for s, w in marketing["key_subjects"].items()
-               if s in {"数学", "物理", "化学", "生物"}) < 0.30
-    assert max(w for s, w in accounting["key_subjects"].items()
-               if s in {"数学", "物理", "化学", "生物"}) >= 0.30
+    assert (
+        max(
+            w
+            for s, w in marketing["key_subjects"].items()
+            if s in {"数学", "物理", "化学", "生物"}
+        )
+        < 0.30
+    )
+    assert (
+        max(
+            w
+            for s, w in accounting["key_subjects"].items()
+            if s in {"数学", "物理", "化学", "生物"}
+        )
+        >= 0.30
+    )
     rec_marketing, why_marketing = soft_filter(student, marketing)
     rec_accounting, _ = soft_filter(student, accounting)
     assert rec_marketing is False, f"市场营销 应被 cross-track 硬过滤: {why_marketing}"
@@ -411,12 +621,22 @@ def test_soft_filter_rejects_cross_track_humanities_for_li_track(majors):
 def test_soft_filter_cross_track_skipped_for_3plus3(majors):
     """v2.5: 3+3 自由选科学生不触发 cross-track 过滤（无清晰 STEM 信号）。"""
     student_3p3 = StudentProfile(
-        province="北京", mode="3+3", electives=["物理", "化学", "生物"],
-        scores={"语文": 130, "数学": 140, "外语": 130,
-                "物理": 70, "化学": 70, "生物": 64},
+        province="北京",
+        mode="3+3",
+        electives=["物理", "化学", "生物"],
+        scores={
+            "语文": 130,
+            "数学": 140,
+            "外语": 130,
+            "物理": 70,
+            "化学": 70,
+            "生物": 64,
+        },
     )
     student_li = StudentProfile(
-        province="陕西", mode="3+1+2", electives=["物理", "化学", "生物"],
+        province="陕西",
+        mode="3+1+2",
+        electives=["物理", "化学", "生物"],
         scores=student_3p3.scores,
     )
     marketing = majors["市场营销"]
@@ -429,9 +649,17 @@ def test_soft_filter_cross_track_skipped_for_3plus3(majors):
 def test_soft_filter_passes_stem_major_for_li_track(majors):
     """v2.5: STEM 专业（CS 数学权重 0.4+）对理科生 soft_filter 通过。"""
     student = StudentProfile(
-        province="陕西", mode="3+1+2", electives=["物理", "化学", "生物"],
-        scores={"语文": 130, "数学": 140, "外语": 130,
-                "物理": 95, "化学": 90, "生物": 88},
+        province="陕西",
+        mode="3+1+2",
+        electives=["物理", "化学", "生物"],
+        scores={
+            "语文": 130,
+            "数学": 140,
+            "外语": 130,
+            "物理": 95,
+            "化学": 90,
+            "生物": 88,
+        },
     )
     cs = majors["计算机类 / 软件工程"]
     recommended, _ = soft_filter(student, cs)
@@ -443,16 +671,28 @@ def test_recommend_drops_humanities_for_li_track_student(majors):
     场景下，英语/外语 / 新闻传播 / 社会工作 / 设计类 都必须落在 not_recommended，
     不能再以 consider 档位干扰用户视线。"""
     student = StudentProfile(
-        province="陕西", mode="3+1+2", electives=["物理", "化学", "生物"],
-        scores={"语文": 130, "数学": 140, "外语": 130,
-                "物理": 70, "化学": 70, "生物": 64},
+        province="陕西",
+        mode="3+1+2",
+        electives=["物理", "化学", "生物"],
+        scores={
+            "语文": 130,
+            "数学": 140,
+            "外语": 130,
+            "物理": 70,
+            "化学": 70,
+            "生物": 64,
+        },
         favorite_subjects=["数学", "语文", "物理", "生物"],
         disliked_subjects=["化学"],
     )
     recs = recommend(student)
     by_name = {r["name"]: r for r in recs}
-    for humanities in ("英语/外语", "新闻传播 / 传播学", "社会工作",
-                        "设计类（视觉传达/产品设计等）"):
+    for humanities in (
+        "英语/外语",
+        "新闻传播 / 传播学",
+        "社会工作",
+        "设计类（视觉传达/产品设计等）",
+    ):
         assert humanities in by_name, f"{humanities} missing from recommendations"
         assert by_name[humanities]["category"] != "consider", (
             f"{humanities} 必须不在 consider 档，实际: {by_name[humanities]['category']}"
@@ -465,24 +705,43 @@ def test_recommend_drops_humanities_for_li_track_student(majors):
 def test_recommend_returns_sorted_categories():
     """recommend 输出按 category 升序、score 降序。"""
     student = StudentProfile(
-        province="广东", mode="3+1+2", electives=["物理", "化学", "生物"],
-        scores={"语文": 115, "数学": 138, "外语": 130, "物理": 90, "化学": 85, "生物": 82},
-        favorite_subjects=["数学"], disliked_subjects=[],
+        province="广东",
+        mode="3+1+2",
+        electives=["物理", "化学", "生物"],
+        scores={
+            "语文": 115,
+            "数学": 138,
+            "外语": 130,
+            "物理": 90,
+            "化学": 85,
+            "生物": 82,
+        },
+        favorite_subjects=["数学"],
+        disliked_subjects=[],
     )
     results = recommend(student, top_n=None)
     cats = [r["category"] for r in results]
     cat_rank = {"strong": 0, "consider": 1, "not_recommended": 2, "ineligible": 3}
     for i in range(len(cats) - 1):
         assert cat_rank[cats[i]] <= cat_rank[cats[i + 1]], (
-            f"category 顺序错位：第 {i} 项 {cats[i]} > 第 {i+1} 项 {cats[i+1]}"
+            f"category 顺序错位：第 {i} 项 {cats[i]} > 第 {i + 1} 项 {cats[i + 1]}"
         )
 
 
 def test_recommend_includes_eligible_and_ineligible():
     """选历史的考生：理工类应在 ineligible 桶，文科类应在前面。"""
     student = StudentProfile(
-        province="广东", mode="3+1+2", electives=["历史", "政治", "地理"],
-        scores={"语文": 125, "数学": 110, "外语": 130, "历史": 88, "政治": 80, "地理": 82},
+        province="广东",
+        mode="3+1+2",
+        electives=["历史", "政治", "地理"],
+        scores={
+            "语文": 125,
+            "数学": 110,
+            "外语": 130,
+            "历史": 88,
+            "政治": 80,
+            "地理": 82,
+        },
     )
     results = recommend(student, top_n=None)
     names_by_cat = {}
@@ -521,9 +780,18 @@ def test_risk_appetite_does_not_affect_adi_total():
     """v1.5: risk_appetite 已剥离出 ADI 乘法链。
     strong_averse 与 neutral 用户对同一专业的 total 应**完全相同**。"""
     averse_answers = {
-        "Q01": "A", "Q08": "B", "Q09": "B", "Q10": "B", "Q11": "B",
-        "Q12": "B", "Q13": "B", "Q14": "B", "Q15": "B",
-        "Q16": "C", "Q17": "B", "Q18": "A",
+        "Q01": "A",
+        "Q08": "B",
+        "Q09": "B",
+        "Q10": "B",
+        "Q11": "B",
+        "Q12": "B",
+        "Q13": "B",
+        "Q14": "B",
+        "Q15": "B",
+        "Q16": "C",
+        "Q17": "B",
+        "Q18": "A",
     }
     neutral_answers = {**averse_answers, "Q01": "B", "Q18": "B"}
     common_majors = [
@@ -560,16 +828,16 @@ def _tie_break_overrides() -> dict:
     """
     base = {"resource_sensitivity": "default", "ai_impact": "neutral"}
     return {
-        "A_PURE":  {"paths": 1, "reach": 4, "correct": 1, "recover": 3, **base},
-        "C_PURE":  {"paths": 4, "reach": 1, "correct": 3, "recover": 1, **base},
+        "A_PURE": {"paths": 1, "reach": 4, "correct": 1, "recover": 3, **base},
+        "C_PURE": {"paths": 4, "reach": 1, "correct": 3, "recover": 1, **base},
         "B_MIXED": {"paths": 2, "reach": 1, "correct": 3, "recover": 2, **base},
     }
 
 
 def _tie_break_majors() -> list[dict]:
     return [
-        {"rank": 1, "name": "A_PURE",  "resource": "C"},
-        {"rank": 2, "name": "C_PURE",  "resource": "C"},
+        {"rank": 1, "name": "A_PURE", "resource": "C"},
+        {"rank": 2, "name": "C_PURE", "resource": "C"},
         {"rank": 3, "name": "B_MIXED", "resource": "C"},
     ]
 
@@ -577,9 +845,18 @@ def _tie_break_majors() -> list[dict]:
 def _neutral_personality_answers(q01: str, q18: str) -> dict:
     """All-B traits so per-dim multipliers are constant across majors."""
     return {
-        "Q01": q01, "Q08": "B", "Q09": "B", "Q10": "B", "Q11": "B",
-        "Q12": "B", "Q13": "B", "Q14": "B", "Q15": "B",
-        "Q16": "C", "Q17": "B", "Q18": q18,
+        "Q01": q01,
+        "Q08": "B",
+        "Q09": "B",
+        "Q10": "B",
+        "Q11": "B",
+        "Q12": "B",
+        "Q13": "B",
+        "Q14": "B",
+        "Q15": "B",
+        "Q16": "C",
+        "Q17": "B",
+        "Q18": q18,
     }
 
 
@@ -587,11 +864,13 @@ def test_tie_break_totals_are_equal_for_designed_shapes():
     """Fixture check: the three designed shapes really do produce identical
     ADI totals (otherwise the tie-break never fires and following tests
     would be measuring something else)."""
-    result = compute_all({
-        "majors": _tie_break_majors(),
-        "answers": _neutral_personality_answers("B", "B"),
-        "_session_overrides": _tie_break_overrides(),
-    })
+    result = compute_all(
+        {
+            "majors": _tie_break_majors(),
+            "answers": _neutral_personality_answers("B", "B"),
+            "_session_overrides": _tie_break_overrides(),
+        }
+    )
     totals = {n: result["majors"][n]["total"] for n in result["algorithm_rank"]}
     values = list(totals.values())
     assert all(v == pytest.approx(values[0], rel=1e-6) for v in values), totals
@@ -601,17 +880,34 @@ def test_tie_break_weights_loaded_correctly_per_appetite():
     """Direct assertion on the 5 weight rows. The matrix is the contract;
     behavior tests below verify it sorts as intended."""
     expected = {
-        ("A", "A"): ("strong_averse",  {"paths": 0.00, "reach": 0.50, "correct": 0.00, "recover": 0.50}),
-        ("A", "B"): ("averse",         {"paths": 0.09, "reach": 0.38, "correct": 0.09, "recover": 0.44}),
-        ("B", "B"): ("neutral",        {"paths": 0.30, "reach": 0.10, "correct": 0.30, "recover": 0.30}),
-        ("C", "B"): ("seeking",        {"paths": 0.44, "reach": 0.03, "correct": 0.44, "recover": 0.09}),
-        ("C", "C"): ("strong_seeking", {"paths": 0.50, "reach": 0.00, "correct": 0.50, "recover": 0.00}),
+        ("A", "A"): (
+            "strong_averse",
+            {"paths": 0.00, "reach": 0.50, "correct": 0.00, "recover": 0.50},
+        ),
+        ("A", "B"): (
+            "averse",
+            {"paths": 0.09, "reach": 0.38, "correct": 0.09, "recover": 0.44},
+        ),
+        ("B", "B"): (
+            "neutral",
+            {"paths": 0.30, "reach": 0.10, "correct": 0.30, "recover": 0.30},
+        ),
+        ("C", "B"): (
+            "seeking",
+            {"paths": 0.44, "reach": 0.03, "correct": 0.44, "recover": 0.09},
+        ),
+        ("C", "C"): (
+            "strong_seeking",
+            {"paths": 0.50, "reach": 0.00, "correct": 0.50, "recover": 0.00},
+        ),
     }
     for (q01, q18), (apt, w) in expected.items():
-        result = compute_all({
-            "majors": [{"rank": 1, "name": "法学", "resource": "C"}],
-            "answers": _neutral_personality_answers(q01, q18),
-        })
+        result = compute_all(
+            {
+                "majors": [{"rank": 1, "name": "法学", "resource": "C"}],
+                "answers": _neutral_personality_answers(q01, q18),
+            }
+        )
         assert result["meta"]["risk_appetite"] == apt
         for dim, expected_w in w.items():
             actual = result["meta"]["appetite_tie_break_weights"][dim]
@@ -622,21 +918,25 @@ def test_tie_break_weights_loaded_correctly_per_appetite():
 
 def test_strong_averse_tie_break_picks_a_pure():
     """AA: weighted sum {reach 0.5, recover 0.5} → A_PURE 必赢。"""
-    result = compute_all({
-        "majors": _tie_break_majors(),
-        "answers": _neutral_personality_answers("A", "A"),
-        "_session_overrides": _tie_break_overrides(),
-    })
+    result = compute_all(
+        {
+            "majors": _tie_break_majors(),
+            "answers": _neutral_personality_answers("A", "A"),
+            "_session_overrides": _tie_break_overrides(),
+        }
+    )
     assert result["algorithm_rank"][0] == "A_PURE"
 
 
 def test_strong_seeking_tie_break_picks_c_pure():
     """CC: weighted sum {paths 0.5, correct 0.5} → C_PURE 必赢。"""
-    result = compute_all({
-        "majors": _tie_break_majors(),
-        "answers": _neutral_personality_answers("C", "C"),
-        "_session_overrides": _tie_break_overrides(),
-    })
+    result = compute_all(
+        {
+            "majors": _tie_break_majors(),
+            "answers": _neutral_personality_answers("C", "C"),
+            "_session_overrides": _tie_break_overrides(),
+        }
+    )
     assert result["algorithm_rank"][0] == "C_PURE"
 
 
@@ -648,11 +948,13 @@ def test_neutral_tie_break_ranks_b_above_a_profile():
     注意：在 linear 加权和下，C_PURE 仍可能 > B_MIXED（因为 paths/correct 极值
     比 B 的均衡更高分）——这是 linear 设计的固有取舍。这个测试只断言 B 维度
     确实进入了 tie-break，不要求 B_MIXED 击败 C_PURE。"""
-    result = compute_all({
-        "majors": _tie_break_majors(),
-        "answers": _neutral_personality_answers("B", "B"),
-        "_session_overrides": _tie_break_overrides(),
-    })
+    result = compute_all(
+        {
+            "majors": _tie_break_majors(),
+            "answers": _neutral_personality_answers("B", "B"),
+            "_session_overrides": _tie_break_overrides(),
+        }
+    )
     rank = result["algorithm_rank"]
     assert rank.index("B_MIXED") < rank.index("A_PURE"), (
         f"BB 应把 B_MIXED 排在 A_PURE 之前（reach 权重=0），得到 {rank}"
@@ -662,11 +964,13 @@ def test_neutral_tie_break_ranks_b_above_a_profile():
 def test_contradiction_uses_all_zeros_weights_for_stable_order():
     """v1.8: contradiction 行显式 all-zeros → 加权和恒为 0 → stable sort
     保留 majors_input 顺序。语义与 v1.7 None 分支等价，但矩阵自解释。"""
-    result = compute_all({
-        "majors": _tie_break_majors(),
-        "answers": _neutral_personality_answers("A", "C"),
-        "_session_overrides": _tie_break_overrides(),
-    })
+    result = compute_all(
+        {
+            "majors": _tie_break_majors(),
+            "answers": _neutral_personality_answers("A", "C"),
+            "_session_overrides": _tie_break_overrides(),
+        }
+    )
     assert result["meta"]["appetite_contradiction"] is True
     weights_vec = result["meta"]["appetite_tie_break_weights"]
     assert weights_vec == {"paths": 0.0, "reach": 0.0, "correct": 0.0, "recover": 0.0}
@@ -675,14 +979,19 @@ def test_contradiction_uses_all_zeros_weights_for_stable_order():
 
 def test_appetite_contradiction_flagged_simple_case():
     """单专业冒烟：矛盾 → flag=true, appetite='contradiction', weights all-zeros。"""
-    result = compute_all({
-        "majors": [{"rank": 1, "name": "法学", "resource": "C"}],
-        "answers": _neutral_personality_answers("A", "C"),
-    })
+    result = compute_all(
+        {
+            "majors": [{"rank": 1, "name": "法学", "resource": "C"}],
+            "answers": _neutral_personality_answers("A", "C"),
+        }
+    )
     assert result["meta"]["appetite_contradiction"] is True
     assert result["meta"]["risk_appetite"] == "contradiction"
     assert result["meta"]["appetite_tie_break_weights"] == {
-        "paths": 0.0, "reach": 0.0, "correct": 0.0, "recover": 0.0,
+        "paths": 0.0,
+        "reach": 0.0,
+        "correct": 0.0,
+        "recover": 0.0,
     }
 
 
@@ -698,13 +1007,24 @@ def test_admission_score_blend_perfect_match_preserves_adi():
             {"rank": 3, "name": "物理", "resource": "C"},
         ],
         "answers": {
-            "Q01": "B", "Q08": "B", "Q09": "B", "Q10": "B", "Q11": "B",
-            "Q12": "B", "Q13": "B", "Q14": "B", "Q15": "B",
-            "Q16": "C", "Q17": "B", "Q18": "B",
+            "Q01": "B",
+            "Q08": "B",
+            "Q09": "B",
+            "Q10": "B",
+            "Q11": "B",
+            "Q12": "B",
+            "Q13": "B",
+            "Q14": "B",
+            "Q15": "B",
+            "Q16": "C",
+            "Q17": "B",
+            "Q18": "B",
         },
     }
     no_blend = compute_all(base_input)
-    full_blend = compute_all({**base_input, "_admission_scores": {"计算机类 / 软件工程": 1.0}})
+    full_blend = compute_all(
+        {**base_input, "_admission_scores": {"计算机类 / 软件工程": 1.0}}
+    )
     cs_no = no_blend["majors"]["计算机类 / 软件工程"]
     cs_full = full_blend["majors"]["计算机类 / 软件工程"]
     assert cs_full["admission_blend_factor"] == 1.0
@@ -720,13 +1040,24 @@ def test_admission_score_blend_zero_match_dampens_adi():
             {"rank": 3, "name": "物理", "resource": "C"},
         ],
         "answers": {
-            "Q01": "B", "Q08": "B", "Q09": "B", "Q10": "B", "Q11": "B",
-            "Q12": "B", "Q13": "B", "Q14": "B", "Q15": "B",
-            "Q16": "C", "Q17": "B", "Q18": "B",
+            "Q01": "B",
+            "Q08": "B",
+            "Q09": "B",
+            "Q10": "B",
+            "Q11": "B",
+            "Q12": "B",
+            "Q13": "B",
+            "Q14": "B",
+            "Q15": "B",
+            "Q16": "C",
+            "Q17": "B",
+            "Q18": "B",
         },
     }
     no_blend = compute_all(base_input)
-    zero_blend = compute_all({**base_input, "_admission_scores": {"计算机类 / 软件工程": 0.0}})
+    zero_blend = compute_all(
+        {**base_input, "_admission_scores": {"计算机类 / 软件工程": 0.0}}
+    )
     cs_no = no_blend["majors"]["计算机类 / 软件工程"]
     cs_zero = zero_blend["majors"]["计算机类 / 软件工程"]
     assert cs_zero["admission_blend_factor"] == 0.5
@@ -744,9 +1075,18 @@ def test_admission_score_does_not_alter_adi_total_field():
             {"rank": 3, "name": "物理", "resource": "C"},
         ],
         "answers": {
-            "Q01": "B", "Q08": "B", "Q09": "B", "Q10": "B", "Q11": "B",
-            "Q12": "B", "Q13": "B", "Q14": "B", "Q15": "B",
-            "Q16": "C", "Q17": "B", "Q18": "B",
+            "Q01": "B",
+            "Q08": "B",
+            "Q09": "B",
+            "Q10": "B",
+            "Q11": "B",
+            "Q12": "B",
+            "Q13": "B",
+            "Q14": "B",
+            "Q15": "B",
+            "Q16": "C",
+            "Q17": "B",
+            "Q18": "B",
         },
         "_admission_scores": {"计算机类 / 软件工程": 0.5},
     }
@@ -765,8 +1105,6 @@ def test_admission_baseline_keys_aligned():
     """v2.0 lint: baseline_adi.json.majors 与 majors_admission_2024.json.majors
     必须同步；v2.1 扩展同时校验 _user_additions 同步——防止「其他专业现场推断」
     只落盘到 baseline 而忘了 admission（断裂工作流）。"""
-    import json
-    from pathlib import Path
     refs = Path(__file__).resolve().parent.parent / "references"
     with open(refs / "baseline_adi.json", encoding="utf-8") as f:
         baseline_data = json.load(f)
@@ -795,9 +1133,17 @@ def test_admission_baseline_keys_aligned():
 def test_recommend_includes_user_additions(majors):
     """v2.1: admission_recommender 应同时考虑 _user_additions 中的专业（如 微电子）。"""
     student = StudentProfile(
-        province="广东", mode="3+1+2", electives=["物理", "化学", "生物"],
-        scores={"语文": 125, "数学": 130, "外语": 130,
-                "物理": 88, "化学": 85, "生物": 82},
+        province="广东",
+        mode="3+1+2",
+        electives=["物理", "化学", "生物"],
+        scores={
+            "语文": 125,
+            "数学": 130,
+            "外语": 130,
+            "物理": 88,
+            "化学": 85,
+            "生物": 82,
+        },
     )
     results = recommend(student)
     names = {r["name"] for r in results}
@@ -816,12 +1162,21 @@ def test_compute_extras_fallback_pool_includes_user_additions():
             {"rank": 3, "name": "经济学", "resource": "B"},
         ],
         "answers": {
-            "Q01": "B", "Q08": "B", "Q09": "B", "Q10": "B", "Q11": "B",
-            "Q12": "B", "Q13": "B", "Q14": "B", "Q15": "B",
-            "Q16": "C", "Q17": "B", "Q18": "B",
+            "Q01": "B",
+            "Q08": "B",
+            "Q09": "B",
+            "Q10": "B",
+            "Q11": "B",
+            "Q12": "B",
+            "Q13": "B",
+            "Q14": "B",
+            "Q15": "B",
+            "Q16": "C",
+            "Q17": "B",
+            "Q18": "B",
         },
     }
-    result = compute_all(inp)
+    compute_all(inp)  # smoke: extras 路径不崩即可
     # extras 最多 3 个，可能不一定含微电子（要看排序），但池内必然包含
     # 我们间接验证：扩大测试，把 baseline 几乎所有大热门排除，看微电子是否能进 top 3
     inp2 = {
@@ -832,27 +1187,39 @@ def test_compute_extras_fallback_pool_includes_user_additions():
             {"rank": 3, "name": "信息安全 / 网络工程", "resource": "C"},
         ],
     }
-    result2 = compute_all(inp2)
-    extras_names = {e["name"] for e in result2["extras"]}
+    compute_all(inp2)  # smoke: extras 路径不崩即可
     # 微电子 ADI 192，是相对高分专业，去掉 3 个 CS/AI/sec 后大概率进 top 3
     # 但具体排名取决于其他专业（如 数学、电气）；我们至少断言它进入过候选池
     # 通过 monkey-patching 排除所有更高分专业的方式不优雅；改用直接调用底层池构建
     from scripts.score_engine import load_baseline
+
     baseline = load_baseline()
-    pool_keys = set((baseline.get("majors") or {}).keys()) | set((baseline.get("_user_additions") or {}).keys())
+    pool_keys = set((baseline.get("majors") or {}).keys()) | set(
+        (baseline.get("_user_additions") or {}).keys()
+    )
     assert "微电子" in pool_keys
 
 
 def test_question_bank_notes_present_for_substantive_questions():
     """v2.7 lint: Q01/Q08-Q18 全部 12 个 substantive 题每个选项必须有 notes 字段，
     防止未来不小心删除导致 Claude 重新自创补充（如出现"绿高考考"这类错别字）。"""
-    import json
-    from pathlib import Path
-    qb_path = Path(__file__).resolve().parent.parent / "references" / "question_bank.json"
+    qb_path = (
+        Path(__file__).resolve().parent.parent / "references" / "question_bank.json"
+    )
     qbank = json.loads(qb_path.read_text())
     required_qs = {
-        "Q01", "Q08", "Q09", "Q10", "Q11", "Q12", "Q13", "Q14",
-        "Q15", "Q16", "Q17", "Q18",
+        "Q01",
+        "Q08",
+        "Q09",
+        "Q10",
+        "Q11",
+        "Q12",
+        "Q13",
+        "Q14",
+        "Q15",
+        "Q16",
+        "Q17",
+        "Q18",
     }
     for item in qbank["questions"]:
         if item["id"] in required_qs:

@@ -6,6 +6,7 @@ Usage:
 Stdout: the rendered Markdown report (so the conversation layer can paste it back).
 Stderr: file paths of the generated artifacts.
 """
+
 import argparse
 import json
 import sys
@@ -48,7 +49,9 @@ def main() -> None:
     """CLI entry."""
     parser = argparse.ArgumentParser(description="Major-ADI pipeline: score + render")
     parser.add_argument("--input", required=True, help="Path to input.json")
-    parser.add_argument("--out-dir", default=".", help="Output directory (default: cwd)")
+    parser.add_argument(
+        "--out-dir", default=".", help="Output directory (default: cwd)"
+    )
     parser.add_argument("--markdown-only", action="store_true", help="Skip HTML")
     args = parser.parse_args()
 

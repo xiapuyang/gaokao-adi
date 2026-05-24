@@ -3,6 +3,7 @@
 Template placeholders live in `assets/report_template.html`.
 Chart.js is loaded from jsDelivr; if it fails, the page degrades to tables.
 """
+
 import argparse
 import html
 import json
@@ -12,7 +13,6 @@ from pathlib import Path
 from scripts.render_markdown import (
     APPETITE_LABELS,
     DIMENSION_LABELS,
-    TAU_INTERPRETATION,
     _generate_advice,
     _interpret_tau,
     _load_qbank,
@@ -23,20 +23,53 @@ from scripts.score_engine import CLAMP_MAX, DIMENSION_KEYS as DIM_ORDER
 _BASE = Path(__file__).resolve().parent.parent
 TEMPLATE_PATH = _BASE / "assets" / "report_template.html"
 
-GRADE_COLOR = {"低难": "#2da45e", "中等": "#d9b13a", "较难": "#e07a3a", "高难": "#c43c4d"}
+GRADE_COLOR = {
+    "低难": "#2da45e",
+    "中等": "#d9b13a",
+    "较难": "#e07a3a",
+    "高难": "#c43c4d",
+}
 
 # Natural-language phrasing for each (Q-id, answer) pair so HTML readers don't
 # face raw codes like "Q13=A". Markdown report keeps codes; HTML paraphrases.
 _Q_VALUE_PHRASE: dict[str, dict[str, str]] = {
     "Q01": {"A": "稳定路径偏好", "B": "灵活路径偏好", "C": "冲上限路径偏好"},
-    "Q08": {"A": "学习能力强", "B": "学习能力中上", "C": "学习能力中下", "D": "学习能力偏弱"},
-    "Q09": {"A": "难度承受强", "B": "难度承受中上", "C": "难度承受中下", "D": "难度承受偏弱"},
-    "Q10": {"A": "试错能力强", "B": "试错能力中上", "C": "试错能力中下", "D": "试错能力偏弱"},
-    "Q11": {"A": "调整能力强", "B": "调整能力中上", "C": "调整能力中下", "D": "调整能力偏弱"},
-    "Q12": {"A": "家庭资源明显支持", "B": "家庭资源一定支持",
-            "C": "家庭资源基本支持", "D": "家庭资源几乎无"},
-    "Q13": {"A": "愿意长期高投入", "B": "愿意中长期投入",
-            "C": "只接受中等投入", "D": "不接受长期投入"},
+    "Q08": {
+        "A": "学习能力强",
+        "B": "学习能力中上",
+        "C": "学习能力中下",
+        "D": "学习能力偏弱",
+    },
+    "Q09": {
+        "A": "难度承受强",
+        "B": "难度承受中上",
+        "C": "难度承受中下",
+        "D": "难度承受偏弱",
+    },
+    "Q10": {
+        "A": "试错能力强",
+        "B": "试错能力中上",
+        "C": "试错能力中下",
+        "D": "试错能力偏弱",
+    },
+    "Q11": {
+        "A": "调整能力强",
+        "B": "调整能力中上",
+        "C": "调整能力中下",
+        "D": "调整能力偏弱",
+    },
+    "Q12": {
+        "A": "家庭资源明显支持",
+        "B": "家庭资源一定支持",
+        "C": "家庭资源基本支持",
+        "D": "家庭资源几乎无",
+    },
+    "Q13": {
+        "A": "愿意长期高投入",
+        "B": "愿意中长期投入",
+        "C": "只接受中等投入",
+        "D": "不接受长期投入",
+    },
     "Q14": {"A": "持续主动拓展", "B": "有一定拓展", "C": "偶尔拓展", "D": "基本不拓展"},
     "Q15": {"A": "近期状态上升", "B": "近期状态稳定", "C": "近期状态下降"},
     "Q18": {"A": "风险偏避险", "B": "风险偏权衡", "C": "风险偏进取"},
@@ -100,7 +133,7 @@ def _contributor_li(c: dict, css_class: str, prefix: str, pct_fmt: str) -> str:
     suffix = f"（{annotation}）" if annotation else ""
     return (
         f'<li class="{css_class}">{prefix}：{_esc(tag)} → '
-        f'「{_esc(dim_label)}」{pct_str}{_esc(suffix)}</li>'
+        f"「{_esc(dim_label)}」{pct_str}{_esc(suffix)}</li>"
     )
 
 
@@ -118,14 +151,17 @@ def _overview_chips(meta: dict, qbank: dict) -> str:
         ("城市重视", _option_label(qbank, "Q17", meta["city_emphasis"])),
     ]
     return "".join(
-        f'<span class="chip"><strong>{_esc(k)}</strong>：{_esc(v)}</span>' for k, v in items
+        f'<span class="chip"><strong>{_esc(k)}</strong>：{_esc(v)}</span>'
+        for k, v in items
     )
 
 
 def _subjective_table_html(result: dict) -> str:
     """Render the subjective vs algorithm rank comparison table."""
     rows = []
-    for i, (s, a) in enumerate(zip(result["subjective_rank"], result["algorithm_rank"]), 1):
+    for i, (s, a) in enumerate(
+        zip(result["subjective_rank"], result["algorithm_rank"]), 1
+    ):
         same = s == a
         mark = '<span class="same">✓</span>' if same else '<span class="swap">↔</span>'
         rows.append(
@@ -133,9 +169,9 @@ def _subjective_table_html(result: dict) -> str:
             f"<td>{i}</td><td>{_esc(a)}</td></tr>"
         )
     return (
-        '<table><thead><tr><th>你的偏好序</th><th>专业</th><th></th>'
-        '<th>算法序</th><th>专业</th></tr></thead>'
-        f'<tbody>{"".join(rows)}</tbody></table>'
+        "<table><thead><tr><th>你的偏好序</th><th>专业</th><th></th>"
+        "<th>算法序</th><th>专业</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody></table>"
     )
 
 
@@ -152,9 +188,9 @@ def _score_table_html(result: dict) -> str:
             f"<td>{_esc(DIMENSION_LABELS[d['bottleneck']])}</td></tr>"
         )
     return (
-        '<table><thead><tr><th>排名</th><th>专业</th><th>总分</th>'
-        '<th>分档</th><th>瓶颈维度</th></tr></thead>'
-        f'<tbody>{"".join(rows)}</tbody></table>'
+        "<table><thead><tr><th>排名</th><th>专业</th><th>总分</th>"
+        "<th>分档</th><th>瓶颈维度</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody></table>"
     )
 
 
@@ -210,7 +246,7 @@ def _impact_li(c: dict, css_class: str, prefix_icon: str) -> str:
     suffix = f"（{note}）" if note else ""
     return (
         f'<li class="{css_class}">{prefix_icon} {_esc(tag)} → '
-        f'「{_esc(dim_label)}」{sign}{pct:.0f}%{_esc(suffix)}</li>'
+        f"「{_esc(dim_label)}」{sign}{pct:.0f}%{_esc(suffix)}</li>"
     )
 
 
@@ -232,10 +268,12 @@ def _phase_a_questionnaire_impact(d: dict) -> str:
             flattened.append({**c, "dimension": dim})
     if not flattened:
         return ""
-    lifts = sorted([c for c in flattened if c["delta"] > 0],
-                    key=lambda c: -c["delta"])[:3]
-    drags = sorted([c for c in flattened if c["delta"] < 0],
-                    key=lambda c: c["delta"])[:2]
+    lifts = sorted([c for c in flattened if c["delta"] > 0], key=lambda c: -c["delta"])[
+        :3
+    ]
+    drags = sorted([c for c in flattened if c["delta"] < 0], key=lambda c: c["delta"])[
+        :2
+    ]
     shown_keys = {(c["source"], c["dimension"]) for c in lifts + drags}
     # Force-include per-major resource positive contribution if not already shown.
     for c in flattened:
@@ -248,7 +286,7 @@ def _phase_a_questionnaire_impact(d: dict) -> str:
     absorbed = _absorbed_by_cap(d, shown_keys)
     return (
         '<div class="impact-block"><strong>你的画像如何影响这个分</strong>'
-        f'<ul>{"".join(items)}</ul>{absorbed}</div>'
+        f"<ul>{''.join(items)}</ul>{absorbed}</div>"
     )
 
 
@@ -274,8 +312,8 @@ def _absorbed_by_cap(d: dict, shown_keys: set) -> str:
             note = _sensitivity_note(c)
             note_suffix = f"，{note}" if note else ""
             items.append(
-                f"<li class=\"absorbed\">▫️ {_esc(tag)} 给「{_esc(DIMENSION_LABELS[dim])}」"
-                f"+{c['delta']*100:.0f}%{_esc(note_suffix)}"
+                f'<li class="absorbed">▫️ {_esc(tag)} 给「{_esc(DIMENSION_LABELS[dim])}」'
+                f"+{c['delta'] * 100:.0f}%{_esc(note_suffix)}"
                 f"（该维度 base×系数={theoretical:.2f} 已超 5.00 上限，"
                 f"多余 {overflow:.2f} 被截断）</li>"
             )
@@ -283,15 +321,20 @@ def _absorbed_by_cap(d: dict, shown_keys: set) -> str:
         return ""
     return (
         '<div class="absorbed-block">'
-        '<small><strong>未显示项（被 5.0 上限截断）：</strong></small>'
+        "<small><strong>未显示项（被 5.0 上限截断）：</strong></small>"
         f'<ul class="absorbed-list">{"".join(items)}</ul>'
-        '</div>'
+        "</div>"
     )
 
 
 def _classify_subject_status(
-    subj: str, raw: float, norm: float, weight: float,
-    threshold: float | None, self_avg: float, is_favorite: bool,
+    subj: str,
+    raw: float,
+    norm: float,
+    weight: float,
+    threshold: float | None,
+    self_avg: float,
+    is_favorite: bool,
 ) -> str:
     """Return short status label for a key_subject row in Phase B."""
     parts = []
@@ -309,7 +352,9 @@ def _classify_subject_status(
 
 
 def _phase_b_subject_match(
-    name: str, student_context: dict | None, admission_data: dict,
+    name: str,
+    student_context: dict | None,
+    admission_data: dict,
 ) -> str:
     """Phase B: 成绩与本专业 key_subjects 匹配表（仅推荐分支可见）。"""
     if not student_context:
@@ -322,6 +367,7 @@ def _phase_b_subject_match(
     if not key_subjects:
         return ""
     from scripts.admission_recommender import _normalize_score
+
     norm_scores = {
         s: _normalize_score(s, v) for s, v in scores.items() if v is not None
     }
@@ -337,7 +383,12 @@ def _phase_b_subject_match(
             continue
         norm = norm_scores.get(subj, 0.0)
         status = _classify_subject_status(
-            subj, raw, norm, weight, soft.get(subj), self_avg,
+            subj,
+            raw,
+            norm,
+            weight,
+            soft.get(subj),
+            self_avg,
             subj in favorites,
         )
         rows.append(
@@ -349,27 +400,22 @@ def _phase_b_subject_match(
         return ""
     return (
         '<div class="match-block"><strong>成绩与本专业 key_subjects 匹配</strong>'
-        '<table><thead><tr><th>科目</th><th>权重</th><th>原始分</th>'
-        '<th>归一化</th><th>说明</th></tr></thead>'
-        f'<tbody>{"".join(rows)}</tbody></table></div>'
+        "<table><thead><tr><th>科目</th><th>权重</th><th>原始分</th>"
+        "<th>归一化</th><th>说明</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody></table></div>"
     )
 
 
 def _phase_c_summary(d: dict, rank: int) -> str:
     """Phase C: 一段话总结（模板，规则拼装）。"""
-    parts = [
-        f"在你的三个候选里排第 {rank}，ADI 总分 {d['total']}（{d['grade']}）。"
-    ]
+    parts = [f"在你的三个候选里排第 {rank}，ADI 总分 {d['total']}（{d['grade']}）。"]
     if d.get("top_lift"):
         c = d["top_lift"]
         parts.append(
             f"最大拉抬来自「{DIMENSION_LABELS[c['dimension']]}」"
-            f"（{c['delta']*100:+.0f}%）。"
+            f"（{c['delta'] * 100:+.0f}%）。"
         )
-    parts.append(
-        f"瓶颈在「{DIMENSION_LABELS[d['bottleneck']]}」，"
-        f"决定了上限。"
-    )
+    parts.append(f"瓶颈在「{DIMENSION_LABELS[d['bottleneck']]}」，决定了上限。")
     adm = d.get("admission_score")
     if adm is not None:
         if adm >= 0.75:
@@ -380,7 +426,7 @@ def _phase_c_summary(d: dict, rank: int) -> str:
             parts.append(f"招生匹配度 {adm:.0%}，偏低。")
     return (
         '<div class="summary-block"><strong>一句话总结</strong>'
-        f'<p>{_esc(" ".join(parts))}</p></div>'
+        f"<p>{_esc(' '.join(parts))}</p></div>"
     )
 
 
@@ -388,6 +434,7 @@ def _load_admission_data() -> dict:
     """Lazy load admission data for Phase B; empty dict on missing/malformed file."""
     try:
         from scripts.admission_recommender import load_admission
+
         return load_admission()
     except (FileNotFoundError, json.JSONDecodeError):
         return {"majors": {}}
@@ -409,18 +456,18 @@ def _admission_breakdown_html(d: dict) -> str:
     if factor is None or abs(factor - 1.0) < 0.001:
         return (
             f'<p class="admission-line">'
-            f'<strong>原始 ADI</strong> = {product_text} = <strong>{adi_raw}</strong>'
+            f"<strong>原始 ADI</strong> = {product_text} = <strong>{adi_raw}</strong>"
             ' <span class="muted">（无招生匹配折扣）</span></p>'
         )
     adm = d.get("admission_score")
     adm_pct = f"{adm:.0%}" if adm is not None else "—"
     return (
         f'<p class="admission-line">'
-        f'<strong>原始 ADI</strong> = {product_text} = <strong>{adi_raw}</strong>'
-        f' → × 招生匹配度 {adm_pct}（系数 {factor:.2f}）'
-        f' → <strong>最终 {final}</strong>'
+        f"<strong>原始 ADI</strong> = {product_text} = <strong>{adi_raw}</strong>"
+        f" → × 招生匹配度 {adm_pct}（系数 {factor:.2f}）"
+        f" → <strong>最终 {final}</strong>"
         f'<br><span class="muted">系数 = 0.7 + 0.3 × 招生匹配度；'
-        f'匹配度 = 你的成绩与本专业 key_subjects 的契合度</span></p>'
+        f"匹配度 = 你的成绩与本专业 key_subjects 的契合度</span></p>"
     )
 
 
@@ -441,9 +488,13 @@ def _major_cards_html(result: dict) -> str:
             )
         notes = []
         if d.get("top_lift"):
-            notes.append(_contributor_li(d["top_lift"], "lift", "🚀 主要拉抬", "+{pct:.0f}%"))
+            notes.append(
+                _contributor_li(d["top_lift"], "lift", "🚀 主要拉抬", "+{pct:.0f}%")
+            )
         if d.get("top_drag"):
-            notes.append(_contributor_li(d["top_drag"], "drag", "🪨 主要拖累", "{pct:.0f}%"))
+            notes.append(
+                _contributor_li(d["top_drag"], "drag", "🪨 主要拖累", "{pct:.0f}%")
+            )
         notes.append(
             f"<li>⚠️ 瓶颈维度：<strong>{_esc(DIMENSION_LABELS[d['bottleneck']])}</strong>"
             "（最低维度锁住总分上限）</li>"
@@ -453,9 +504,9 @@ def _major_cards_html(result: dict) -> str:
             notes.append("<li>ℹ️ 此专业基础分为本次现场推断，置信度低于词典专业。</li>")
         cards.append(
             f'<div class="card">'
-            f'<h3>{i}. {_esc(name)} — {d["total"]} '
+            f"<h3>{i}. {_esc(name)} — {d['total']} "
             f'<span class="grade-{d["grade"]}">{d["grade"]}</span></h3>'
-            '<table><thead><tr><th>维度</th><th>基础</th>'
+            "<table><thead><tr><th>维度</th><th>基础</th>"
             f"<th>个人系数</th><th>调整后</th></tr></thead><tbody>{''.join(rows)}</tbody></table>"
             f"{_admission_breakdown_html(d)}"
             f"<ul>{''.join(notes)}</ul>"
@@ -473,11 +524,17 @@ def _extra_reason_template(ex: dict, top: dict | None) -> str:
     if top is not None and top["total"] > 0:
         diff_pct = (ex["total"] - top["total"]) / top["total"] * 100
         if abs(diff_pct) < 5:
-            parts.append(f"ADI 与你的最强候选「{top['name']}」基本持平（{ex['total']} vs {top['total']}）")
+            parts.append(
+                f"ADI 与你的最强候选「{top['name']}」基本持平（{ex['total']} vs {top['total']}）"
+            )
         elif diff_pct > 0:
-            parts.append(f"ADI {ex['total']} 高于你最强候选「{top['name']}」{abs(diff_pct):.0f}%")
+            parts.append(
+                f"ADI {ex['total']} 高于你最强候选「{top['name']}」{abs(diff_pct):.0f}%"
+            )
         else:
-            parts.append(f"ADI {ex['total']} 略低于你最强候选「{top['name']}」{abs(diff_pct):.0f}%，但匹配度值得关注")
+            parts.append(
+                f"ADI {ex['total']} 略低于你最强候选「{top['name']}」{abs(diff_pct):.0f}%，但匹配度值得关注"
+            )
     else:
         parts.append(f"ADI 总分 {ex['total']}（{ex['grade']}）")
     score = ex.get("admission_score")
@@ -492,8 +549,9 @@ def _extra_compare_template(ex: dict, top: dict) -> str:
         (dim, ex["dimensions"][dim]["adjusted"] - top["dimensions"][dim]["adjusted"])
         for dim in DIM_ORDER
     ]
-    sig = sorted([(d, v) for d, v in diffs if abs(v) >= 0.3],
-                  key=lambda x: -abs(x[1]))[:2]
+    sig = sorted([(d, v) for d, v in diffs if abs(v) >= 0.3], key=lambda x: -abs(x[1]))[
+        :2
+    ]
     if not sig:
         return f"4 维度与「{top['name']}」基本一致"
     parts = []
@@ -508,7 +566,9 @@ def _extra_when_priority_template(ex: dict, top: dict | None) -> str:
     if top is None:
         adj = {d: ex["dimensions"][d]["adjusted"] for d in DIM_ORDER}
         top_dim = max(adj, key=lambda d: adj[d])
-        hint = _WHEN_PRIORITY_RULES.get(top_dim, f"你看重{DIMENSION_LABELS.get(top_dim, '')}")
+        hint = _WHEN_PRIORITY_RULES.get(
+            top_dim, f"你看重{DIMENSION_LABELS.get(top_dim, '')}"
+        )
         return f"如果{hint}，可优先考虑"
     diffs = {
         d: ex["dimensions"][d]["adjusted"] - top["dimensions"][d]["adjusted"]
@@ -517,7 +577,9 @@ def _extra_when_priority_template(ex: dict, top: dict | None) -> str:
     best_dim, best_diff = max(diffs.items(), key=lambda x: x[1])
     if best_diff < 0.2:
         return "在 ADI 综合得分上是同档优质选项，可作为备选参考"
-    hint = _WHEN_PRIORITY_RULES.get(best_dim, f"你看重{DIMENSION_LABELS.get(best_dim, '')}")
+    hint = _WHEN_PRIORITY_RULES.get(
+        best_dim, f"你看重{DIMENSION_LABELS.get(best_dim, '')}"
+    )
     return f"如果{hint}，本专业比「{top['name']}」更对路"
 
 
@@ -526,8 +588,12 @@ def _extras_section_html(result: dict) -> str:
     extras = result.get("extras") or []
     if not extras:
         return ""
-    top_selected_name = result["algorithm_rank"][0] if result.get("algorithm_rank") else None
-    top_selected = result["majors"].get(top_selected_name) if top_selected_name else None
+    top_selected_name = (
+        result["algorithm_rank"][0] if result.get("algorithm_rank") else None
+    )
+    top_selected = (
+        result["majors"].get(top_selected_name) if top_selected_name else None
+    )
     warning = result.get("extras_warning")
     cards = []
     for i, ex in enumerate(extras, 1):
@@ -535,23 +601,21 @@ def _extras_section_html(result: dict) -> str:
         compare = _extra_compare_template(ex, top_selected) if top_selected else ""
         when = _extra_when_priority_template(ex, top_selected)
         compare_html = (
-            f'<p><strong>与你最强候选对比：</strong>{_esc(compare)}</p>'
-            if compare else ""
+            f"<p><strong>与你最强候选对比：</strong>{_esc(compare)}</p>"
+            if compare
+            else ""
         )
         cards.append(
             f'<div class="card extra-card">'
-            f'<h3>#{i} {_esc(ex["name"])} — {ex["total"]} '
+            f"<h3>#{i} {_esc(ex['name'])} — {ex['total']} "
             f'<span class="grade-{ex["grade"]}">{ex["grade"]}</span></h3>'
-            f'<p><strong>为什么推荐：</strong>{_esc(why)}</p>'
-            f'{compare_html}'
-            f'<p><strong>何时优先考虑：</strong>{_esc(when)}</p>'
-            '</div>'
+            f"<p><strong>为什么推荐：</strong>{_esc(why)}</p>"
+            f"{compare_html}"
+            f"<p><strong>何时优先考虑：</strong>{_esc(when)}</p>"
+            "</div>"
         )
-    warn_html = f'<div class="warn">⚠️ {_esc(warning)}</div>' if warning else ''
-    return (
-        '<h2>额外推荐（你未选但值得考虑）</h2>'
-        f'{warn_html}{"".join(cards)}'
-    )
+    warn_html = f'<div class="warn">⚠️ {_esc(warning)}</div>' if warning else ""
+    return f"<h2>额外推荐（你未选但值得考虑）</h2>{warn_html}{''.join(cards)}"
 
 
 def _advice_html(result: dict) -> str:
@@ -580,31 +644,39 @@ def _radar_data(result: dict) -> list[dict]:
     entries = []
     for name in result["algorithm_rank"]:
         d = result["majors"][name]
-        adjusted = [d["dimensions"][dim]["adjusted"] for dim in ("paths", "reach", "correct", "recover")]
-        base = [d["dimensions"][dim]["base"] for dim in ("paths", "reach", "correct", "recover")]
-        entries.append({
-            "name": name,
-            "data": {
-                "labels": labels,
-                "datasets": [
-                    {
-                        "label": "调整后",
-                        "data": adjusted,
-                        "backgroundColor": "rgba(45,108,223,0.18)",
-                        "borderColor": "#2d6cdf",
-                        "borderWidth": 2,
-                    },
-                    {
-                        "label": "基础",
-                        "data": base,
-                        "backgroundColor": "rgba(150,150,150,0.10)",
-                        "borderColor": "#999",
-                        "borderWidth": 1,
-                        "borderDash": [4, 4],
-                    },
-                ],
-            },
-        })
+        adjusted = [
+            d["dimensions"][dim]["adjusted"]
+            for dim in ("paths", "reach", "correct", "recover")
+        ]
+        base = [
+            d["dimensions"][dim]["base"]
+            for dim in ("paths", "reach", "correct", "recover")
+        ]
+        entries.append(
+            {
+                "name": name,
+                "data": {
+                    "labels": labels,
+                    "datasets": [
+                        {
+                            "label": "调整后",
+                            "data": adjusted,
+                            "backgroundColor": "rgba(45,108,223,0.18)",
+                            "borderColor": "#2d6cdf",
+                            "borderWidth": 2,
+                        },
+                        {
+                            "label": "基础",
+                            "data": base,
+                            "backgroundColor": "rgba(150,150,150,0.10)",
+                            "borderColor": "#999",
+                            "borderWidth": 1,
+                            "borderDash": [4, 4],
+                        },
+                    ],
+                },
+            }
+        )
     return entries
 
 
@@ -615,11 +687,13 @@ def _bar_data(result: dict) -> dict:
     colors = [GRADE_COLOR[result["majors"][m]["grade"]] for m in labels]
     return {
         "labels": labels,
-        "datasets": [{
-            "label": "ADI 总分",
-            "data": totals,
-            "backgroundColor": colors,
-        }],
+        "datasets": [
+            {
+                "label": "ADI 总分",
+                "data": totals,
+                "backgroundColor": colors,
+            }
+        ],
     }
 
 
@@ -643,10 +717,12 @@ def render(result: dict, template_path: Path = TEMPLATE_PATH) -> str:
         "{{extras_section}}": _extras_section_html(result),
         # Escape `</` inside JSON to prevent breaking out of <script> blocks
         # if a major name happens to contain a literal closing-tag substring.
-        "{{radar_data_json}}":
-            json.dumps(_radar_data(result), ensure_ascii=False).replace("</", "<\\/"),
-        "{{bar_data_json}}":
-            json.dumps(_bar_data(result), ensure_ascii=False).replace("</", "<\\/"),
+        "{{radar_data_json}}": json.dumps(
+            _radar_data(result), ensure_ascii=False
+        ).replace("</", "<\\/"),
+        "{{bar_data_json}}": json.dumps(_bar_data(result), ensure_ascii=False).replace(
+            "</", "<\\/"
+        ),
     }
     for k, v in subs.items():
         tpl = tpl.replace(k, v)

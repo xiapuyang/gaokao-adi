@@ -26,7 +26,11 @@ def _meta(**overrides) -> dict:
 
 def test_advice_names_pair_when_appetite_reorders():
     out = _appetite_advice(
-        _meta(appetite_changed_order=True, appetite_promoted="数据科学", appetite_demoted="计算机")
+        _meta(
+            appetite_changed_order=True,
+            appetite_promoted="数据科学",
+            appetite_demoted="计算机",
+        )
     )
     text = "\n".join(out)
     assert "起了作用" in text
@@ -44,7 +48,9 @@ def test_advice_states_no_effect_when_order_unchanged():
 
 
 def test_advice_contradiction_short_circuits():
-    out = _appetite_advice(_meta(appetite_contradiction=True, risk_appetite="contradiction"))
+    out = _appetite_advice(
+        _meta(appetite_contradiction=True, risk_appetite="contradiction")
+    )
     text = "\n".join(out)
     assert "自相矛盾" in text
     assert "起了作用" not in text and "未改变名次" not in text

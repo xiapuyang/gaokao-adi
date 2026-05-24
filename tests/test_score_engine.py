@@ -5,6 +5,7 @@ they encode the qualitative outcomes the origin articles assert
 (case A vs case B), and they encode the core invariant that baseline
 locking cannot be erased by personality multipliers.
 """
+
 import json
 from pathlib import Path
 
@@ -118,9 +119,18 @@ def test_personality_cannot_erase_baseline_lock():
             {"rank": 3, "name": "艺术类（美术/音乐/表演）", "resource": "A"},
         ],
         "answers": {
-            "Q01": "C", "Q08": "A", "Q09": "A", "Q10": "A", "Q11": "A",
-            "Q12": "A", "Q13": "A", "Q14": "A", "Q15": "A",
-            "Q16": "B", "Q17": "C", "Q18": "C",
+            "Q01": "C",
+            "Q08": "A",
+            "Q09": "A",
+            "Q10": "A",
+            "Q11": "A",
+            "Q12": "A",
+            "Q13": "A",
+            "Q14": "A",
+            "Q15": "A",
+            "Q16": "B",
+            "Q17": "C",
+            "Q18": "C",
         },
     }
     result = compute_all(extreme)
@@ -146,6 +156,7 @@ def test_algorithm_rank_is_descending_by_total(case_a):
 def test_band_index_groups_close_totals():
     """v3.16：相对差 ≤ pct 的 total 落在同一对数 band；明显不同的进不同 band。"""
     from scripts.score_engine import _band_index
+
     assert _band_index(100, 0.05) == _band_index(103, 0.05)  # 3% 内 → 同 band
     assert _band_index(100, 0.05) != _band_index(130, 0.05)  # 30% → 不同 band
 
@@ -156,6 +167,7 @@ def test_appetite_reorders_within_band_but_not_across(case_a):
     用纯函数 _appetite_sort_key 锁住语义，避免依赖具体 baseline 数值。
     """
     from scripts.score_engine import _appetite_sort_key
+
     hi_total_low_fit = {"total": 103.0, "personal_fit": 2.0}
     lo_total_hi_fit = {"total": 100.0, "personal_fit": 4.0}
     within = sorted(
@@ -176,6 +188,7 @@ def test_appetite_reorders_within_band_but_not_across(case_a):
 def test_appetite_effect_no_op_when_order_matches_objective():
     """同 band 两专业但最终序与客观序一致 → appetite 没起作用，不点名。"""
     from scripts.score_engine import _appetite_effect
+
     majors = {"A": {"total": 625.0}, "B": {"total": 625.0}, "C": {"total": 180.0}}
     changed, promoted, demoted = _appetite_effect(majors, ["A", "B", "C"], 0.05)
     assert changed is False
@@ -185,12 +198,13 @@ def test_appetite_effect_no_op_when_order_matches_objective():
 def test_appetite_effect_detects_reorder_and_names_pair():
     """同 band 两专业被 appetite 换位 → 返回被顶上去/被压下去的具体专业。"""
     from scripts.score_engine import _appetite_effect
+
     # 输入序 [X, Y]（同 total → 同 band），但最终 algorithm_rank 把 Y 排到前。
     majors = {"X": {"total": 225.0}, "Y": {"total": 225.0}}
     changed, promoted, demoted = _appetite_effect(majors, ["Y", "X"], 0.05)
     assert changed is True
     assert promoted == "Y"  # appetite 把 Y 顶上去
-    assert demoted == "X"   # 越过了 X
+    assert demoted == "X"  # 越过了 X
 
 
 def test_meta_exposes_appetite_effect_flags(case_a):
@@ -265,37 +279,45 @@ def test_unknown_major_raises_value_error():
 def test_alias_resolves_to_canonical_main_entry():
     """_aliases 命中后用规范化名查主表，得分与规范化名直接查相同。"""
     answers = _default_answers()
-    aliased = compute_all({
-        "majors": [
-            {"rank": 1, "name": "集成电路", "resource": "B"},
-            {"rank": 2, "name": "法学", "resource": "C"},
-            {"rank": 3, "name": "经济学", "resource": "C"},
-        ],
-        "answers": answers,
-    })
-    canonical = compute_all({
-        "majors": [
-            {"rank": 1, "name": "微电子", "resource": "B"},
-            {"rank": 2, "name": "法学", "resource": "C"},
-            {"rank": 3, "name": "经济学", "resource": "C"},
-        ],
-        "answers": answers,
-    })
-    assert aliased["majors"]["集成电路"]["total"] == canonical["majors"]["微电子"]["total"]
+    aliased = compute_all(
+        {
+            "majors": [
+                {"rank": 1, "name": "集成电路", "resource": "B"},
+                {"rank": 2, "name": "法学", "resource": "C"},
+                {"rank": 3, "name": "经济学", "resource": "C"},
+            ],
+            "answers": answers,
+        }
+    )
+    canonical = compute_all(
+        {
+            "majors": [
+                {"rank": 1, "name": "微电子", "resource": "B"},
+                {"rank": 2, "name": "法学", "resource": "C"},
+                {"rank": 3, "name": "经济学", "resource": "C"},
+            ],
+            "answers": answers,
+        }
+    )
+    assert (
+        aliased["majors"]["集成电路"]["total"] == canonical["majors"]["微电子"]["total"]
+    )
     # 集成电路 走别名到 _user_additions 的 微电子 — 标记为 user_addition，不是 session_override
     assert "集成电路" not in aliased["meta"]["session_inferred_majors"]
 
 
 def test_alias_to_user_additions():
     """微电子 在 _user_additions，直接查应该走 user_addition 通道。"""
-    result = compute_all({
-        "majors": [
-            {"rank": 1, "name": "微电子", "resource": "B"},
-            {"rank": 2, "name": "法学", "resource": "C"},
-            {"rank": 3, "name": "经济学", "resource": "C"},
-        ],
-        "answers": _default_answers(),
-    })
+    result = compute_all(
+        {
+            "majors": [
+                {"rank": 1, "name": "微电子", "resource": "B"},
+                {"rank": 2, "name": "法学", "resource": "C"},
+                {"rank": 3, "name": "经济学", "resource": "C"},
+            ],
+            "answers": _default_answers(),
+        }
+    )
     assert "微电子" in result["majors"]
     assert "微电子" not in result["meta"]["session_inferred_majors"]
 
@@ -310,7 +332,10 @@ def test_session_overrides_take_precedence():
         ],
         "_session_overrides": {
             "航空航天工程": {
-                "paths": 3, "reach": 3, "correct": 2, "recover": 3,
+                "paths": 3,
+                "reach": 3,
+                "correct": 2,
+                "recover": 3,
                 "rationale": "test override",
             }
         },
@@ -341,9 +366,18 @@ def test_all_three_session_inferred_flags_low_confidence():
 
 def _default_answers() -> dict:
     return {
-        "Q01": "B", "Q08": "B", "Q09": "B", "Q10": "B", "Q11": "B",
-        "Q12": "B", "Q13": "B", "Q14": "B", "Q15": "B",
-        "Q16": "C", "Q17": "B", "Q18": "B",
+        "Q01": "B",
+        "Q08": "B",
+        "Q09": "B",
+        "Q10": "B",
+        "Q11": "B",
+        "Q12": "B",
+        "Q13": "B",
+        "Q14": "B",
+        "Q15": "B",
+        "Q16": "C",
+        "Q17": "B",
+        "Q18": "B",
     }
 
 
@@ -374,11 +408,12 @@ def test_q3_specific_resource_sensitivity_modulates_recover():
     }
     base_res = compute_all(base)
     boost_res = compute_all(boost)
-    finance_ratio = _recover_multiplier(boost_res, "金融学") / _recover_multiplier(base_res, "金融学")
-    cs_ratio = (
-        _recover_multiplier(boost_res, "计算机类 / 软件工程")
-        / _recover_multiplier(base_res, "计算机类 / 软件工程")
+    finance_ratio = _recover_multiplier(boost_res, "金融学") / _recover_multiplier(
+        base_res, "金融学"
     )
+    cs_ratio = _recover_multiplier(
+        boost_res, "计算机类 / 软件工程"
+    ) / _recover_multiplier(base_res, "计算机类 / 软件工程")
     assert finance_ratio > cs_ratio, (
         f"金融 Q3=A recover 涨幅 {finance_ratio:.4f} 应大于 CS 涨幅 {cs_ratio:.4f}"
     )
@@ -386,40 +421,52 @@ def test_q3_specific_resource_sensitivity_modulates_recover():
 
 def test_q12_global_resource_sensitivity_modulates_recover():
     """Q12=A 给临床医学（decisive）的 recover 涨幅应大于给计算机（low）。"""
-    cs_a = compute_all({
-        "majors": [
-            {"rank": 1, "name": "计算机类 / 软件工程", "resource": "C"},
-            {"rank": 2, "name": "数学", "resource": "C"},
-            {"rank": 3, "name": "物理", "resource": "C"},
-        ],
-        "answers": {**_default_answers(), "Q12": "A"},
-    })
-    cs_c = compute_all({
-        "majors": [
-            {"rank": 1, "name": "计算机类 / 软件工程", "resource": "C"},
-            {"rank": 2, "name": "数学", "resource": "C"},
-            {"rank": 3, "name": "物理", "resource": "C"},
-        ],
-        "answers": {**_default_answers(), "Q12": "C"},
-    })
-    cl_a = compute_all({
-        "majors": [
-            {"rank": 1, "name": "临床医学", "resource": "C"},
-            {"rank": 2, "name": "数学", "resource": "C"},
-            {"rank": 3, "name": "物理", "resource": "C"},
-        ],
-        "answers": {**_default_answers(), "Q12": "A"},
-    })
-    cl_c = compute_all({
-        "majors": [
-            {"rank": 1, "name": "临床医学", "resource": "C"},
-            {"rank": 2, "name": "数学", "resource": "C"},
-            {"rank": 3, "name": "物理", "resource": "C"},
-        ],
-        "answers": {**_default_answers(), "Q12": "C"},
-    })
-    cs_ratio = _recover_multiplier(cs_a, "计算机类 / 软件工程") / _recover_multiplier(cs_c, "计算机类 / 软件工程")
-    cl_ratio = _recover_multiplier(cl_a, "临床医学") / _recover_multiplier(cl_c, "临床医学")
+    cs_a = compute_all(
+        {
+            "majors": [
+                {"rank": 1, "name": "计算机类 / 软件工程", "resource": "C"},
+                {"rank": 2, "name": "数学", "resource": "C"},
+                {"rank": 3, "name": "物理", "resource": "C"},
+            ],
+            "answers": {**_default_answers(), "Q12": "A"},
+        }
+    )
+    cs_c = compute_all(
+        {
+            "majors": [
+                {"rank": 1, "name": "计算机类 / 软件工程", "resource": "C"},
+                {"rank": 2, "name": "数学", "resource": "C"},
+                {"rank": 3, "name": "物理", "resource": "C"},
+            ],
+            "answers": {**_default_answers(), "Q12": "C"},
+        }
+    )
+    cl_a = compute_all(
+        {
+            "majors": [
+                {"rank": 1, "name": "临床医学", "resource": "C"},
+                {"rank": 2, "name": "数学", "resource": "C"},
+                {"rank": 3, "name": "物理", "resource": "C"},
+            ],
+            "answers": {**_default_answers(), "Q12": "A"},
+        }
+    )
+    cl_c = compute_all(
+        {
+            "majors": [
+                {"rank": 1, "name": "临床医学", "resource": "C"},
+                {"rank": 2, "name": "数学", "resource": "C"},
+                {"rank": 3, "name": "物理", "resource": "C"},
+            ],
+            "answers": {**_default_answers(), "Q12": "C"},
+        }
+    )
+    cs_ratio = _recover_multiplier(cs_a, "计算机类 / 软件工程") / _recover_multiplier(
+        cs_c, "计算机类 / 软件工程"
+    )
+    cl_ratio = _recover_multiplier(cl_a, "临床医学") / _recover_multiplier(
+        cl_c, "临床医学"
+    )
     assert cl_ratio > cs_ratio, (
         f"临床医学 Q12 ratio {cl_ratio:.4f} 应大于 CS ratio {cs_ratio:.4f}"
     )
@@ -427,14 +474,16 @@ def test_q12_global_resource_sensitivity_modulates_recover():
 
 def test_resource_sensitivity_level_reported():
     """compute_major 返回每个专业实际使用的 resource_sensitivity 等级。"""
-    result = compute_all({
-        "majors": [
-            {"rank": 1, "name": "金融学", "resource": "C"},
-            {"rank": 2, "name": "计算机类 / 软件工程", "resource": "C"},
-            {"rank": 3, "name": "临床医学", "resource": "C"},
-        ],
-        "answers": _default_answers(),
-    })
+    result = compute_all(
+        {
+            "majors": [
+                {"rank": 1, "name": "金融学", "resource": "C"},
+                {"rank": 2, "name": "计算机类 / 软件工程", "resource": "C"},
+                {"rank": 3, "name": "临床医学", "resource": "C"},
+            ],
+            "answers": _default_answers(),
+        }
+    )
     assert result["majors"]["金融学"]["resource_sensitivity"] == "high"
     assert result["majors"]["计算机类 / 软件工程"]["resource_sensitivity"] == "low"
     assert result["majors"]["临床医学"]["resource_sensitivity"] == "decisive"
@@ -442,17 +491,25 @@ def test_resource_sensitivity_level_reported():
 
 def test_session_override_defaults_to_default_sensitivity():
     """会话级新专业（无 resource_sensitivity 字段）应回退到 'default'。"""
-    result = compute_all({
-        "majors": [
-            {"rank": 1, "name": "航天X", "resource": "A"},
-            {"rank": 2, "name": "计算机类 / 软件工程", "resource": "A"},
-            {"rank": 3, "name": "数学", "resource": "A"},
-        ],
-        "_session_overrides": {
-            "航天X": {"paths": 3, "reach": 3, "correct": 3, "recover": 3, "rationale": "t"}
-        },
-        "answers": _default_answers(),
-    })
+    result = compute_all(
+        {
+            "majors": [
+                {"rank": 1, "name": "航天X", "resource": "A"},
+                {"rank": 2, "name": "计算机类 / 软件工程", "resource": "A"},
+                {"rank": 3, "name": "数学", "resource": "A"},
+            ],
+            "_session_overrides": {
+                "航天X": {
+                    "paths": 3,
+                    "reach": 3,
+                    "correct": 3,
+                    "recover": 3,
+                    "rationale": "t",
+                }
+            },
+            "answers": _default_answers(),
+        }
+    )
     assert result["majors"]["航天X"]["resource_sensitivity"] == "default"
 
 
@@ -461,17 +518,35 @@ def test_session_override_defaults_to_default_sensitivity():
 
 def _all_a_answers() -> dict:
     return {
-        "Q01": "B", "Q08": "A", "Q09": "A", "Q10": "A", "Q11": "A",
-        "Q12": "B", "Q13": "B", "Q14": "B", "Q15": "B",
-        "Q16": "C", "Q17": "B", "Q18": "B",
+        "Q01": "B",
+        "Q08": "A",
+        "Q09": "A",
+        "Q10": "A",
+        "Q11": "A",
+        "Q12": "B",
+        "Q13": "B",
+        "Q14": "B",
+        "Q15": "B",
+        "Q16": "C",
+        "Q17": "B",
+        "Q18": "B",
     }
 
 
 def _all_d_answers() -> dict:
     return {
-        "Q01": "B", "Q08": "D", "Q09": "D", "Q10": "D", "Q11": "D",
-        "Q12": "B", "Q13": "B", "Q14": "B", "Q15": "B",
-        "Q16": "C", "Q17": "B", "Q18": "B",
+        "Q01": "B",
+        "Q08": "D",
+        "Q09": "D",
+        "Q10": "D",
+        "Q11": "D",
+        "Q12": "B",
+        "Q13": "B",
+        "Q14": "B",
+        "Q15": "B",
+        "Q16": "C",
+        "Q17": "B",
+        "Q18": "B",
     }
 
 
@@ -497,7 +572,10 @@ def test_cs_polarization_high_vs_very_low_ability():
     ]
     high = compute_all({"majors": common, "answers": _all_a_answers()})
     very_low = compute_all({"majors": common, "answers": _all_d_answers()})
-    diff = high["majors"]["计算机类 / 软件工程"]["total"] - very_low["majors"]["计算机类 / 软件工程"]["total"]
+    diff = (
+        high["majors"]["计算机类 / 软件工程"]["total"]
+        - very_low["majors"]["计算机类 / 软件工程"]["total"]
+    )
     assert diff > 300, (
         f"CS 高能力 vs 极弱能力总分差 {diff:.1f} 应远大于 300（极化效应不显著）"
     )
@@ -518,7 +596,9 @@ def test_threatened_major_negative_even_at_high_ability():
     contribs = law["dimensions"]["reach"]["contributors"]
     ai_contrib = next((c for c in contribs if c["source"] == "ai_impact"), None)
     assert ai_contrib is not None, "法学应有 ai_impact 贡献"
-    assert ai_contrib["delta"] < 0, f"threatened+high 的 reach AI delta 应为负，实际 {ai_contrib['delta']}"
+    assert ai_contrib["delta"] < 0, (
+        f"threatened+high 的 reach AI delta 应为负，实际 {ai_contrib['delta']}"
+    )
     assert law["ai_impact"] == "threatened"
     assert law["ability_level"] == "high"
 
@@ -527,17 +607,27 @@ def test_neutral_major_not_affected_by_ability():
     """临床医学 (neutral) 总分不应因能力变化而通过 AI 路径偏移
     (个人 trait 仍会影响，但 AI 修正项必须为 0)。"""
     inputs = [
-        {"majors": [{"rank": 1, "name": "临床医学", "resource": "C"},
-                    {"rank": 2, "name": "数学", "resource": "C"},
-                    {"rank": 3, "name": "物理", "resource": "C"}],
-         "answers": ans}
+        {
+            "majors": [
+                {"rank": 1, "name": "临床医学", "resource": "C"},
+                {"rank": 2, "name": "数学", "resource": "C"},
+                {"rank": 3, "name": "物理", "resource": "C"},
+            ],
+            "answers": ans,
+        }
         for ans in (_all_a_answers(), _default_answers(), _all_d_answers())
     ]
     for inp in inputs:
         r = compute_all(inp)["majors"]["临床医学"]
         for dim in ("reach", "paths"):
-            ai = next((c for c in r["dimensions"][dim]["contributors"]
-                       if c["source"] == "ai_impact"), None)
+            ai = next(
+                (
+                    c
+                    for c in r["dimensions"][dim]["contributors"]
+                    if c["source"] == "ai_impact"
+                ),
+                None,
+            )
             assert ai is None or ai["delta"] == 0, (
                 f"neutral 专业 {dim} 的 AI delta 应为 0，实际 {ai}"
             )
@@ -545,14 +635,16 @@ def test_neutral_major_not_affected_by_ability():
 
 def test_ai_impact_level_reported():
     """compute_major 输出每个专业实际使用的 ai_impact + ability_level。"""
-    result = compute_all({
-        "majors": [
-            {"rank": 1, "name": "计算机类 / 软件工程", "resource": "C"},
-            {"rank": 2, "name": "法学", "resource": "C"},
-            {"rank": 3, "name": "临床医学", "resource": "C"},
-        ],
-        "answers": _all_a_answers(),
-    })
+    result = compute_all(
+        {
+            "majors": [
+                {"rank": 1, "name": "计算机类 / 软件工程", "resource": "C"},
+                {"rank": 2, "name": "法学", "resource": "C"},
+                {"rank": 3, "name": "临床医学", "resource": "C"},
+            ],
+            "answers": _all_a_answers(),
+        }
+    )
     assert result["majors"]["计算机类 / 软件工程"]["ai_impact"] == "boost"
     assert result["majors"]["法学"]["ai_impact"] == "threatened"
     assert result["majors"]["临床医学"]["ai_impact"] == "neutral"
@@ -577,7 +669,9 @@ def test_rationale_three_layers_required():
     for name, info in baseline["majors"].items():
         rationale = info.get("rationale")
         if not isinstance(rationale, dict):
-            violations.append(f"{name}: rationale 不是 dict（{type(rationale).__name__}）")
+            violations.append(
+                f"{name}: rationale 不是 dict（{type(rationale).__name__}）"
+            )
             continue
         for layer in REQUIRED_RATIONALE_LAYERS:
             if layer not in rationale:
@@ -600,14 +694,16 @@ def test_rationale_three_layers_required():
 
 def test_rationale_passthrough_to_result():
     """score_engine 应原样透传 rationale dict（不破坏结构）。"""
-    result = compute_all({
-        "majors": [
-            {"rank": 1, "name": "计算机类 / 软件工程", "resource": "C"},
-            {"rank": 2, "name": "金融学", "resource": "C"},
-            {"rank": 3, "name": "法学", "resource": "C"},
-        ],
-        "answers": _default_answers(),
-    })
+    result = compute_all(
+        {
+            "majors": [
+                {"rank": 1, "name": "计算机类 / 软件工程", "resource": "C"},
+                {"rank": 2, "name": "金融学", "resource": "C"},
+                {"rank": 3, "name": "法学", "resource": "C"},
+            ],
+            "answers": _default_answers(),
+        }
+    )
     for major_name in ("计算机类 / 软件工程", "金融学", "法学"):
         r = result["majors"][major_name]["rationale"]
         assert isinstance(r, dict), f"{major_name}: rationale 应为 dict"
@@ -617,18 +713,26 @@ def test_rationale_passthrough_to_result():
 
 def test_cs_low_ability_falls_below_finance_high_ability():
     """关键现实信号：低能力学 CS 可能比高能力学金融更难走通——AI 时代的本质判断。"""
-    cs_low = compute_all({
-        "majors": [{"rank": 1, "name": "计算机类 / 软件工程", "resource": "C"},
-                   {"rank": 2, "name": "数学", "resource": "C"},
-                   {"rank": 3, "name": "物理", "resource": "C"}],
-        "answers": _all_d_answers(),
-    })
-    finance_high = compute_all({
-        "majors": [{"rank": 1, "name": "金融学", "resource": "C"},
-                   {"rank": 2, "name": "数学", "resource": "C"},
-                   {"rank": 3, "name": "物理", "resource": "C"}],
-        "answers": _all_a_answers(),
-    })
+    cs_low = compute_all(
+        {
+            "majors": [
+                {"rank": 1, "name": "计算机类 / 软件工程", "resource": "C"},
+                {"rank": 2, "name": "数学", "resource": "C"},
+                {"rank": 3, "name": "物理", "resource": "C"},
+            ],
+            "answers": _all_d_answers(),
+        }
+    )
+    finance_high = compute_all(
+        {
+            "majors": [
+                {"rank": 1, "name": "金融学", "resource": "C"},
+                {"rank": 2, "name": "数学", "resource": "C"},
+                {"rank": 3, "name": "物理", "resource": "C"},
+            ],
+            "answers": _all_a_answers(),
+        }
+    )
     # 这条断言锁住"能力比专业重要"的产品信号；如果未来权重调整后该断言失败，
     # 需要在 scoring_model.md 调参日志里说明为什么允许"低能力学 CS"超过"高能力学金融"
     cs_total = cs_low["majors"]["计算机类 / 软件工程"]["total"]
@@ -650,9 +754,18 @@ def _basic_input() -> dict:
             {"rank": 3, "name": "经济学", "resource": "B"},
         ],
         "answers": {
-            "Q01": "B", "Q08": "B", "Q09": "B", "Q10": "B", "Q11": "B",
-            "Q12": "B", "Q13": "B", "Q14": "B", "Q15": "B",
-            "Q16": "C", "Q17": "B", "Q18": "B",
+            "Q01": "B",
+            "Q08": "B",
+            "Q09": "B",
+            "Q10": "B",
+            "Q11": "B",
+            "Q12": "B",
+            "Q13": "B",
+            "Q14": "B",
+            "Q15": "B",
+            "Q16": "C",
+            "Q17": "B",
+            "Q18": "B",
         },
     }
 

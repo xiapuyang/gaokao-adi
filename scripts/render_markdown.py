@@ -1,4 +1,5 @@
 """Render a personalized ADI result dict into a Markdown report."""
+
 import argparse
 import json
 from datetime import datetime
@@ -110,7 +111,9 @@ def _format_contributor(prefix: str, c: dict, pct_fmt: str) -> str:
 def _section_overview(meta: dict, qbank: dict) -> list[str]:
     """Render the user profile overview section."""
     lines = ["## 概览", ""]
-    lines.append(f"- **路径偏好**：{_option_label(qbank, 'Q01', meta['preference_path'])}")
+    lines.append(
+        f"- **路径偏好**：{_option_label(qbank, 'Q01', meta['preference_path'])}"
+    )
     lines.append(f"- **风险态度**：{_option_label(qbank, 'Q18', meta['risk_tone'])}")
     appetite = meta.get("risk_appetite", "neutral")
     appetite_label = APPETITE_LABELS.get(appetite, "中立权衡")
@@ -118,8 +121,12 @@ def _section_overview(meta: dict, qbank: dict) -> list[str]:
         lines.append(f"- **综合风险倾向**：⚠️ {appetite_label}（Q1 与 Q18 方向相反）")
     else:
         lines.append(f"- **综合风险倾向**：{appetite_label}")
-    lines.append(f"- **学校 vs 专业**：{_option_label(qbank, 'Q16', meta['school_vs_major'])}")
-    lines.append(f"- **城市重视**：{_option_label(qbank, 'Q17', meta['city_emphasis'])}")
+    lines.append(
+        f"- **学校 vs 专业**：{_option_label(qbank, 'Q16', meta['school_vs_major'])}"
+    )
+    lines.append(
+        f"- **城市重视**：{_option_label(qbank, 'Q17', meta['city_emphasis'])}"
+    )
     lines.append("")
     return lines
 
@@ -129,7 +136,9 @@ def _section_subjective_vs_algo(result: dict) -> list[str]:
     lines = ["## 主观偏好 vs 客观可走通", ""]
     lines.append("| 你的偏好序 | 专业 | ↔ | 算法序 | 专业 |")
     lines.append("|---|---|---|---|---|")
-    for i, (s, a) in enumerate(zip(result["subjective_rank"], result["algorithm_rank"]), 1):
+    for i, (s, a) in enumerate(
+        zip(result["subjective_rank"], result["algorithm_rank"]), 1
+    ):
         mark = "✅" if s == a else "↔"
         lines.append(f"| {i} | {_md_cell(s)} | {mark} | {i} | {_md_cell(a)} |")
     tau = result["kendall_tau"]
@@ -174,9 +183,13 @@ def _section_major_card(name: str, data: dict, rank: int) -> list[str]:
         )
     lines.append("")
     if data.get("top_lift"):
-        lines.append(_format_contributor("🚀 **主要拉抬**", data["top_lift"], "+{pct:.0f}%"))
+        lines.append(
+            _format_contributor("🚀 **主要拉抬**", data["top_lift"], "+{pct:.0f}%")
+        )
     if data.get("top_drag"):
-        lines.append(_format_contributor("🪨 **主要拖累**", data["top_drag"], "{pct:.0f}%"))
+        lines.append(
+            _format_contributor("🪨 **主要拖累**", data["top_drag"], "{pct:.0f}%")
+        )
     lines.append(
         f"- ⚠️ **瓶颈维度**：{DIMENSION_LABELS[data['bottleneck']]}（最低的维度锁住总分上限）"
     )
@@ -189,9 +202,9 @@ def _section_major_card(name: str, data: dict, rank: int) -> list[str]:
 
 _APPETITE_TIE_BREAK_NARRATIVE = {
     "strong_averse": "成功可达性 + 损失可控性",
-    "averse":        "损失可控性为主、兼顾成功可达性",
-    "neutral":       "路径数量 + 纠偏能力 + 损失可控性（三维均衡）",
-    "seeking":       "路径数量 + 纠偏能力为主",
+    "averse": "损失可控性为主、兼顾成功可达性",
+    "neutral": "路径数量 + 纠偏能力 + 损失可控性（三维均衡）",
+    "seeking": "路径数量 + 纠偏能力为主",
     "strong_seeking": "路径数量 + 纠偏能力",
 }
 
@@ -269,11 +282,11 @@ def _generate_advice(result: dict) -> list[str]:
                 "建议先在词典里找相近方向做锚点参照、对照分数稳健性。"
             )
         else:
-            out.append(
-                f"- 你偏好专业优先：算法第一名「{top}」是首选。"
-            )
+            out.append(f"- 你偏好专业优先：算法第一名「{top}」是首选。")
     if meta.get("city_emphasis") in ("C", "D"):
-        out.append("- 你重视城市平台：低难/中等专业向一线/新一线倾斜；高难专业更要靠近行业聚集地。")
+        out.append(
+            "- 你重视城市平台：低难/中等专业向一线/新一线倾斜；高难专业更要靠近行业聚集地。"
+        )
     if not out:
         out.append("- 综合表现稳定，没有明显的矛盾信号。")
     return out

@@ -9,13 +9,14 @@ Pipeline:
 The output score (0-1) feeds back into the ADI engine as admission_score,
 applied as a multiplier: final = ADI × (min_factor + range × admission_score).
 """
+
 import argparse
 import json
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from scripts.score_engine import derive_risk_appetite, load_weights
+from scripts.score_engine import load_weights
 
 _REFERENCES = Path(__file__).resolve().parent.parent / "references"
 PROVINCES_PATH = _REFERENCES / "provinces.json"
@@ -37,21 +38,46 @@ def _resolve_soft_filter_relative(weights: dict | None = None) -> dict:
     w = weights if weights is not None else load_weights()
     cfg = w.get("soft_filter_relative", {})
     return {
-        "weights_threshold": float(cfg.get("weights_threshold",
-                                            _DEFAULT_SOFT_FILTER_RELATIVE["weights_threshold"])),
-        "relative_gap": float(cfg.get("relative_gap",
-                                       _DEFAULT_SOFT_FILTER_RELATIVE["relative_gap"])),
-        "favorite_fit_bonus": float(cfg.get("favorite_fit_bonus",
-                                             _DEFAULT_SOFT_FILTER_RELATIVE["favorite_fit_bonus"])),
-        "track_mismatch_stem_threshold": float(cfg.get("track_mismatch_stem_threshold",
-                                                        _DEFAULT_SOFT_FILTER_RELATIVE["track_mismatch_stem_threshold"])),
-        "favorite_l1_threshold_buffer": float(cfg.get("favorite_l1_threshold_buffer",
-                                                       _DEFAULT_SOFT_FILTER_RELATIVE["favorite_l1_threshold_buffer"])),
-        "favorite_l2_weights_buffer": float(cfg.get("favorite_l2_weights_buffer",
-                                                     _DEFAULT_SOFT_FILTER_RELATIVE["favorite_l2_weights_buffer"])),
-        "favorite_l2_norm_buffer": float(cfg.get("favorite_l2_norm_buffer",
-                                                  _DEFAULT_SOFT_FILTER_RELATIVE["favorite_l2_norm_buffer"])),
+        "weights_threshold": float(
+            cfg.get(
+                "weights_threshold", _DEFAULT_SOFT_FILTER_RELATIVE["weights_threshold"]
+            )
+        ),
+        "relative_gap": float(
+            cfg.get("relative_gap", _DEFAULT_SOFT_FILTER_RELATIVE["relative_gap"])
+        ),
+        "favorite_fit_bonus": float(
+            cfg.get(
+                "favorite_fit_bonus",
+                _DEFAULT_SOFT_FILTER_RELATIVE["favorite_fit_bonus"],
+            )
+        ),
+        "track_mismatch_stem_threshold": float(
+            cfg.get(
+                "track_mismatch_stem_threshold",
+                _DEFAULT_SOFT_FILTER_RELATIVE["track_mismatch_stem_threshold"],
+            )
+        ),
+        "favorite_l1_threshold_buffer": float(
+            cfg.get(
+                "favorite_l1_threshold_buffer",
+                _DEFAULT_SOFT_FILTER_RELATIVE["favorite_l1_threshold_buffer"],
+            )
+        ),
+        "favorite_l2_weights_buffer": float(
+            cfg.get(
+                "favorite_l2_weights_buffer",
+                _DEFAULT_SOFT_FILTER_RELATIVE["favorite_l2_weights_buffer"],
+            )
+        ),
+        "favorite_l2_norm_buffer": float(
+            cfg.get(
+                "favorite_l2_norm_buffer",
+                _DEFAULT_SOFT_FILTER_RELATIVE["favorite_l2_norm_buffer"],
+            )
+        ),
     }
+
 
 _SUBJECT_MAX = {"语文": 150, "数学": 150, "外语": 150, "理综": 300, "文综": 300}
 _ELECTIVE_MAX = 100
@@ -75,8 +101,9 @@ def _infer_student_track(student: "StudentProfile") -> str:
     return ""
 
 
-def _is_cross_track_humanities(student: "StudentProfile", admission: dict,
-                                cfg: dict) -> tuple[bool, str]:
+def _is_cross_track_humanities(
+    student: "StudentProfile", admission: dict, cfg: dict
+) -> tuple[bool, str]:
     """Hard cross-track check for 理-track students.
 
     For 理 track students (chose 物理 in 3+1+2, or 理 in traditional),
@@ -110,6 +137,7 @@ def _is_cross_track_humanities(student: "StudentProfile", admission: dict,
         )
     return False, ""
 
+
 _provinces_cache: dict | None = None
 _admission_cache: dict | None = None
 
@@ -130,6 +158,7 @@ class StudentProfile:
         favorite_subjects: User-stated favorites (1-3 entries).
         disliked_subjects: User-stated dislikes (1-3 entries).
     """
+
     province: str
     mode: str = ""
     track: str | None = None
@@ -192,7 +221,8 @@ def is_eligible(student: StudentProfile, admission: dict) -> tuple[bool, str]:
         primary_req = admission.get("required_primary")
         if primary_req and primary_req not in set(student.electives):
             wrong = next(
-                (e for e in student.electives if e in ("物理", "历史")), None,
+                (e for e in student.electives if e in ("物理", "历史")),
+                None,
             )
             if wrong:
                 return False, f"首选要求{primary_req}，你选了{wrong}"
@@ -211,8 +241,9 @@ def is_eligible(student: StudentProfile, admission: dict) -> tuple[bool, str]:
     return True, ""
 
 
-def fit_score(student: StudentProfile, admission: dict,
-              weights: dict | None = None) -> float:
+def fit_score(
+    student: StudentProfile, admission: dict, weights: dict | None = None
+) -> float:
     """FitScore: weighted avg of normalized scores on key_subjects.
 
     v2.0:
@@ -251,7 +282,8 @@ def fit_score(student: StudentProfile, admission: dict,
 
 
 def soft_filter(
-    student: StudentProfile, admission: dict,
+    student: StudentProfile,
+    admission: dict,
     weights: dict | None = None,
 ) -> tuple[bool, str]:
     """Soft filter with four layers: absolute, relative, disliked, cross-track.
@@ -321,7 +353,8 @@ def soft_filter(
         for subj, weight in (admission.get("key_subjects") or {}).items():
             is_fav = subj in favorites
             effective_weights_threshold = (
-                base_weights_threshold * (1 + l2_weights_buffer) if is_fav
+                base_weights_threshold * (1 + l2_weights_buffer)
+                if is_fav
                 else base_weights_threshold
             )
             if weight < effective_weights_threshold:
@@ -404,16 +437,18 @@ def recommend(
         else:
             recommended = False
             reason = why
-        out.append({
-            "name": name,
-            "fit": round(fit, 4),
-            "score": round(fit, 4),
-            "eligible": eligible,
-            "recommended": recommended,
-            "reason": reason,
-            "category": _categorize(fit, eligible, recommended),
-            "tags": info.get("tags", []),
-        })
+        out.append(
+            {
+                "name": name,
+                "fit": round(fit, 4),
+                "score": round(fit, 4),
+                "eligible": eligible,
+                "recommended": recommended,
+                "reason": reason,
+                "category": _categorize(fit, eligible, recommended),
+                "tags": info.get("tags", []),
+            }
+        )
     out.sort(key=lambda r: (_CATEGORY_RANK[r["category"]], -r["score"]))
     return out[:top_n] if top_n else out
 
@@ -425,7 +460,9 @@ def main() -> None:
     `[gaokao-adi] ERROR: <Type>: <message>` envelope on stderr with exit
     code 2, matching run_assessment.py's contract.
     """
-    parser = argparse.ArgumentParser(description="Major recommendation by gaokao scores")
+    parser = argparse.ArgumentParser(
+        description="Major recommendation by gaokao scores"
+    )
     parser.add_argument("--input", required=True, help="Path to student profile JSON")
     parser.add_argument("--top", type=int, default=15)
     args = parser.parse_args()

@@ -1,4 +1,5 @@
 """Pytest config: make scripts/ importable as a package."""
+
 import sys
 from pathlib import Path
 
