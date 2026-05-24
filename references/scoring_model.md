@@ -472,7 +472,7 @@ recover = 2     (失败后可走通的兜底路径少)
 | 日期 | 改动 | 原因 |
 |---|---|---|
 | 2026-05-18 | 初始版本 | 基于案例 A/B 反推 |
-| 2026-05-18 | 经济学 paths 3→4；金融学 correct 4→3；两者 rationale 扩写 | 与 `wiki/archive/202605/风灵-经济学专业为什么总让人又爱又恨.md` 精确对照。作者亲自指认「经济学路径宽度取值较高」（→ paths 4），并把金融定义为「高筛选职业路径」+ 三重平台敏感（→ correct 4 与「赢家通吃」存在内部张力，下调到 3 更贴）。验证：案例 A/B 全部 21 测试仍绿；案例 A 经济学 430→576（仍低难）。 |
+| 2026-05-18 | 经济学 paths 3→4；金融学 correct 4→3；两者 rationale 扩写 | 与风灵《经济学专业为什么总让人又爱又恨》精确对照。作者亲自指认「经济学路径宽度取值较高」（→ paths 4），并把金融定义为「高筛选职业路径」+ 三重平台敏感（→ correct 4 与「赢家通吃」存在内部张力，下调到 3 更贴）。验证：案例 A/B 全部 21 测试仍绿；案例 A 经济学 430→576（仍低难）。 |
 | 2026-05-18 | 算法 v1.1：加入 per-major resource_sensitivity（low/default/high/decisive 4 等级）| 现实差异：金融/医学的家庭资源杠杆远大于 CS。改动：(1) baseline_adi.json 每个专业加 resource_sensitivity 字段；(2) weights.json 把 Q12 从 trait_to_dim 移到 global_resource_to_recover，加 resource_sensitivity_levels（specific/global 二元倍数）；(3) score_engine 在 recover 维度按等级缩放 Q3/Q5/Q7 (specific) 和 Q12 (global)。等级数值可在 weights.json 配置，无需改代码。验证：25/25 测试绿；案例 A 法学略升（27.54→28），仍高难；新增 4 个 sensitivity 单测。 |
 | 2026-05-18 | 算法 v1.2：加入 AI 极化效应（ai_impact × ability_index 4×4 矩阵）| 用户洞察："CS 上限提高、下限降低"——简单的 boost 标签是均值幻觉。改动：(1) baseline_adi.json 每个专业加 ai_impact (boost/neutral/disrupted/threatened)；(2) weights.json 加 ai_impact_levels 4×4 嵌套（4 个等级 × 4 个能力档），以及 ability_index_thresholds；(3) score_engine 加 ability_index() 计算（Q8-Q11 加权平均）和 _resolve_ai_impact() 查表，在 reach 和 paths 维度施加 additive delta。能力越强 boost 受益越大、threatened 受影响越小；能力弱在 boost 类专业反而被替代。验证：31/31 测试绿；案例 A 经济学不变（已 clamp），法学/英语略降但仍高难/低难分类不变。新增 6 个极化单测，含核心保险丝 test_cs_low_ability_falls_below_finance_high_ability。 |
 | 2026-05-18 | 算法 v1.3：rationale 字段从 string 升级为 dict 三层 (baseline / resource / ai_impact)；render 层和单测同步升级 | 用户洞察：每次重写 baseline_adi.json 都会丢一些 rationale 论据（v1.1 资源敏感度依据 → v1.2 重写时丢失）。改动：(1) baseline_adi.json 每个专业 rationale 升级为 object，三层都必填；(2) render_markdown / render_html 用 📝 / 💼 / 🤖 三个图标分行展示三层；(3) 修复 v1.2 引入的 render bug——top_lift/top_drag 处理 ai_impact contributor 时硬访问 'answer' 字段崩溃，改用 _format_contributor / _contributor_li helper 区分不同 source 类型；(4) 加严格 lint 单测 test_rationale_three_layers_required（39 专业 + _user_additions 任何条目缺一层都报错）+ test_rationale_passthrough_to_result。验证：33/33 测试绿；案例 A 经济学 card 正确展示三层 rationale + AI 影响 contributor。 |
@@ -576,7 +576,7 @@ Q8 学习能力 + Q9 难度承受 + Q10 试错 + Q11 调整 → 算术平均（A
 | **disrupted** | 10 | 经济学、金融学、工商管理、市场营销、国际商务、物流管理、电子商务、供应链管理、会计学、设计类 |
 | **threatened** | 5 | 法学、英语/外语、新闻传播、汉语言文学、艺术类 |
 
-**分类来源**：Anthropic Economic Index 2026 + GPTs are GPTs (Eloundou) + 中传 2025 撤专业实证 + 风灵框架。详见 `wiki/knowledge/AI就业替代框架.md` 和单测断言。
+**分类来源**：Anthropic Economic Index 2026 + GPTs are GPTs (Eloundou) + 中传 2025 撤专业实证 + 风灵框架。详见单测断言。
 
 ### 关键单测：核心保险丝
 
