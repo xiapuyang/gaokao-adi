@@ -35,7 +35,13 @@ ADI 的算法是从风灵之声公开案例**反推**的工程实现（作者私
 
 ## 安装
 
-本工具以 Claude Code Skill 形式使用。把仓库放到 `~/.claude/skills/` 下即可被自动发现：
+**方式一（推荐）· `npx skills`** — 用 [vercel-labs/skills](https://github.com/vercel-labs/skills) 一行安装（agent 与安装范围由 CLI 自动识别 / 交互选择）：
+
+```bash
+npx skills add xiapuyang/gaokao-adi
+```
+
+**方式二 · `git clone`** — 直接克隆到 skills 目录：
 
 ```bash
 git clone https://github.com/xiapuyang/gaokao-adi.git ~/.claude/skills/gaokao-adi
