@@ -1,0 +1,263 @@
+{
+  "majors": [
+    {
+      "rank": 1,
+      "name": "计算机类 / 软件工程",
+      "resource": "C"
+    },
+    {
+      "rank": 2,
+      "name": "金融学",
+      "resource": "C"
+    },
+    {
+      "rank": 3,
+      "name": "会计学",
+      "resource": "C"
+    }
+  ],
+  "answers": {
+    "Q01": "B",
+    "Q08": "A",
+    "Q09": "A",
+    "Q10": "A",
+    "Q11": "A",
+    "Q12": "C",
+    "Q13": "B",
+    "Q14": "A",
+    "Q15": "A",
+    "Q16": "B",
+    "Q17": "C",
+    "Q18": "B"
+  },
+  "_admission_scores": {
+    "计算机类 / 软件工程": 0.9292,
+    "金融学": 0.8267,
+    "会计学": 0.8825
+  },
+  "_admission_pool": [
+    {
+      "name": "数据科学 / 人工智能",
+      "score": 0.9358,
+      "category": "strong"
+    },
+    {
+      "name": "统计学",
+      "score": 0.9292,
+      "category": "strong"
+    },
+    {
+      "name": "计算机类 / 软件工程",
+      "score": 0.9292,
+      "category": "strong"
+    },
+    {
+      "name": "信息安全 / 网络工程",
+      "score": 0.9292,
+      "category": "strong"
+    },
+    {
+      "name": "应用数学",
+      "score": 0.9258,
+      "category": "strong"
+    },
+    {
+      "name": "数学",
+      "score": 0.9192,
+      "category": "strong"
+    },
+    {
+      "name": "电子信息工程",
+      "score": 0.9092,
+      "category": "strong"
+    },
+    {
+      "name": "自动化",
+      "score": 0.9092,
+      "category": "strong"
+    },
+    {
+      "name": "物理",
+      "score": 0.9025,
+      "category": "strong"
+    },
+    {
+      "name": "电气工程",
+      "score": 0.9025,
+      "category": "strong"
+    },
+    {
+      "name": "机械工程",
+      "score": 0.9025,
+      "category": "strong"
+    },
+    {
+      "name": "土木工程",
+      "score": 0.89,
+      "category": "strong"
+    },
+    {
+      "name": "会计学",
+      "score": 0.8825,
+      "category": "strong"
+    },
+    {
+      "name": "心理学",
+      "score": 0.829,
+      "category": "strong"
+    },
+    {
+      "name": "金融学",
+      "score": 0.8267,
+      "category": "strong"
+    },
+    {
+      "name": "工商管理",
+      "score": 0.7867,
+      "category": "strong"
+    },
+    {
+      "name": "物流管理",
+      "score": 0.7867,
+      "category": "strong"
+    },
+    {
+      "name": "供应链管理",
+      "score": 0.7867,
+      "category": "strong"
+    },
+    {
+      "name": "经济学",
+      "score": 0.7858,
+      "category": "strong"
+    },
+    {
+      "name": "电子商务",
+      "score": 0.7842,
+      "category": "strong"
+    },
+    {
+      "name": "微电子",
+      "score": 0.8458,
+      "category": "not_recommended"
+    },
+    {
+      "name": "国际商务",
+      "score": 0.8158,
+      "category": "not_recommended"
+    },
+    {
+      "name": "英语/外语",
+      "score": 0.8042,
+      "category": "not_recommended"
+    },
+    {
+      "name": "护理学",
+      "score": 0.8027,
+      "category": "not_recommended"
+    },
+    {
+      "name": "环境工程",
+      "score": 0.793,
+      "category": "not_recommended"
+    },
+    {
+      "name": "市场营销",
+      "score": 0.7808,
+      "category": "not_recommended"
+    },
+    {
+      "name": "临床医学",
+      "score": 0.7742,
+      "category": "not_recommended"
+    },
+    {
+      "name": "口腔医学",
+      "score": 0.7742,
+      "category": "not_recommended"
+    },
+    {
+      "name": "化学",
+      "score": 0.7732,
+      "category": "not_recommended"
+    },
+    {
+      "name": "药学",
+      "score": 0.7568,
+      "category": "not_recommended"
+    },
+    {
+      "name": "生物科学",
+      "score": 0.753,
+      "category": "not_recommended"
+    },
+    {
+      "name": "新闻传播 / 传播学",
+      "score": 0.7275,
+      "category": "not_recommended"
+    },
+    {
+      "name": "建筑学",
+      "score": 0.7133,
+      "category": "not_recommended"
+    },
+    {
+      "name": "设计类（视觉传达/产品设计等）",
+      "score": 0.7117,
+      "category": "not_recommended"
+    },
+    {
+      "name": "教育学",
+      "score": 0.6908,
+      "category": "not_recommended"
+    },
+    {
+      "name": "社会工作",
+      "score": 0.6908,
+      "category": "not_recommended"
+    },
+    {
+      "name": "汉语言文学",
+      "score": 0.6867,
+      "category": "not_recommended"
+    },
+    {
+      "name": "法学",
+      "score": 0.6817,
+      "category": "not_recommended"
+    },
+    {
+      "name": "艺术类（美术/音乐/表演）",
+      "score": 0.6783,
+      "category": "not_recommended"
+    },
+    {
+      "name": "哲学",
+      "score": 0.6783,
+      "category": "not_recommended"
+    }
+  ],
+  "_student_profile": {
+    "scores": {
+      "语文": 130,
+      "数学": 140,
+      "外语": 130,
+      "物理": 80,
+      "化学": 60,
+      "生物": 68
+    },
+    "electives": [
+      "物理",
+      "化学",
+      "生物"
+    ],
+    "favorite_subjects": [
+      "数学",
+      "物理",
+      "语文"
+    ],
+    "disliked_subjects": [
+      "化学"
+    ]
+  }
+}
