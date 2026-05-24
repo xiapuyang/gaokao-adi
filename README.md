@@ -1,6 +1,6 @@
 # gaokao-adi · 中国高考志愿专业路径测评
 
-> 一个 [Claude Code](https://docs.claude.com/en/docs/claude-code) Skill：先按分数告诉你"能报哪些专业"，再给候选专业打一个"这条路你走得通吗"的综合分。
+> 一个通用 **Skill**：先按分数告诉你"能报哪些专业"，再给候选专业打一个"这条路你走得通吗"的综合分。任何支持 Skills 的 AI agent 都能用。
 > 基于风灵之声「专业路径 ADI（Action Domain Index）」模型的工程化复刻。
 
 两个功能，可单独用也可串行用：
@@ -41,7 +41,7 @@ ADI 的算法是从风灵之声公开案例**反推**的工程实现（作者私
 npx skills add xiapuyang/gaokao-adi
 ```
 
-**方式二 · `git clone`** — 直接克隆到 skills 目录：
+**方式二 · `git clone`** — 直接克隆到你 agent 的 skills 目录（下例以 `~/.claude/skills/` 为例，换成你 agent 实际的 skills 路径即可）：
 
 ```bash
 git clone https://github.com/xiapuyang/gaokao-adi.git ~/.claude/skills/gaokao-adi
@@ -49,13 +49,13 @@ git clone https://github.com/xiapuyang/gaokao-adi.git ~/.claude/skills/gaokao-ad
 
 > 需要 **Python ≥ 3.10**（代码使用 PEP 604 联合类型注解）。**运行时零第三方依赖**，只用标准库，无需 `pip install`。
 
-装好后重启 Claude Code，确认 skill 已加载即可。
+装好后重启你的 agent，确认 skill 已加载即可。
 
 ---
 
 ## 使用
 
-直接用自然语言对 Claude 说话即可，skill 会自动触发并引导后续流程。
+直接用自然语言对你的 agent 说话即可，skill 会自动触发并引导后续流程。
 
 **① 按成绩推荐专业：**
 
@@ -70,7 +70,7 @@ git clone https://github.com/xiapuyang/gaokao-adi.git ~/.claude/skills/gaokao-ad
 帮我看看 经济学 / 英语 / 法学 这三个专业，哪条路更走得通？
 ```
 
-Claude 会就读一份 14 题素质问卷，然后给出测评。两者也可串行：先推荐 → 你挑 3 个 → 进 ADI 测评。
+Agent 会就读一份 14 题素质问卷，然后给出测评。两者也可串行：先推荐 → 你挑 3 个 → 进 ADI 测评。
 
 ---
 
