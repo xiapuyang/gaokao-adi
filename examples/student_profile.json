@@ -1,0 +1,9 @@
+{
+  "province": "广东",
+  "mode": "3+1+2",
+  "track": null,
+  "scores": {"语文": 115, "数学": 138, "外语": 130, "物理": 90, "化学": 85, "生物": 82},
+  "electives": ["物理", "化学", "生物"],
+  "favorite_subjects": ["数学"],
+  "disliked_subjects": ["语文"]
+}

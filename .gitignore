@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Tooling
+.uv/
+uv.lock
+.python-version
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Runtime output (ADI 会话目录 / 生成的报告)
+sessions/
+*-report.html
+*-report.md
