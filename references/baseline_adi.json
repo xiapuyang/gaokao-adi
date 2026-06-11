@@ -267,21 +267,21 @@
       }
     },
     "电子商务": {
-      "paths": 3, "reach": 3, "correct": 4, "recover": 3,
+      "paths": 4, "reach": 3, "correct": 4, "recover": 3,
       "resource_sensitivity": "default",
       "ai_impact": "disrupted",
       "rationale": {
-        "baseline": "与市场营销/数字化运营重合度高，paths 中等；行业变化快，correct 较强（可转新媒体/运营）。",
+        "baseline": "原作将电商与 CS/统计/数据科学并列为「路径更宽」组（paths=4）；行业变化快，skills（运营/数据/用户增长）跨方向可迁移，correct 较强（可转新媒体/运营/产品）。",
         "resource": "家庭电商/网红资源有帮助但行业相对开放。",
         "ai_impact": "AI 自动化运营/客服/广告投放是核心冲击点。"
       }
     },
     "供应链管理": {
-      "paths": 3, "reach": 3, "correct": 3, "recover": 3,
+      "paths": 4, "reach": 3, "correct": 3, "recover": 3,
       "resource_sensitivity": "default",
       "ai_impact": "disrupted",
       "rationale": {
-        "baseline": "制造业和零售业核心职能，但岗位主要在大企业；本科直接就业 reach 中等。",
+        "baseline": "原作将供应链与 CS/统计/电商并列为「路径更宽」组（paths=4）；制造业/零售核心职能，可转运营/项目管理；本科直接就业 reach 中等。",
         "resource": "大企业供应链岗位有一定推荐通道但仍以技能/资格为主。",
         "ai_impact": "AI 预测/优化模型直接覆盖该专业核心工具栈——SCM 软件正在被 AI 重写。"
       }
