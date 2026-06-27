@@ -9,7 +9,12 @@
       "法学: 2x2x1x2=8 (原文, 仅限纯法律职业路径)",
       "临床医学: 1x3x1x1=3 (原文, 主观目标可达性约束)"
     ],
-    "dimensions": ["paths", "reach", "correct", "recover"],
+    "dimensions": [
+      "paths",
+      "reach",
+      "correct",
+      "recover"
+    ],
     "scale": "1-5 per dimension; total = product, range 1-625",
     "resource_sensitivity_doc": "Per-major sensitivity to family/personal resources. Levels: low/default/high/decisive. Numeric multipliers configurable in weights.json -> resource_sensitivity_levels.",
     "ai_impact_doc": "Per-major AI impact level. Levels: boost/neutral/disrupted/threatened. Actual reach/paths delta depends on a 4x4 matrix of (ai_impact x ability_index from Q8-Q11).",
@@ -17,7 +22,10 @@
   },
   "majors": {
     "数学": {
-      "paths": 4, "reach": 3, "correct": 5, "recover": 4,
+      "paths": 4,
+      "reach": 3,
+      "correct": 5,
+      "recover": 4,
       "resource_sensitivity": "low",
       "ai_impact": "boost",
       "rationale": {
@@ -27,7 +35,10 @@
       }
     },
     "物理": {
-      "paths": 3, "reach": 3, "correct": 4, "recover": 3,
+      "paths": 3,
+      "reach": 3,
+      "correct": 4,
+      "recover": 3,
       "resource_sensitivity": "low",
       "ai_impact": "neutral",
       "rationale": {
@@ -37,7 +48,10 @@
       }
     },
     "化学": {
-      "paths": 2, "reach": 3, "correct": 3, "recover": 3,
+      "paths": 2,
+      "reach": 3,
+      "correct": 3,
+      "recover": 3,
       "resource_sensitivity": "default",
       "ai_impact": "neutral",
       "rationale": {
@@ -47,17 +61,23 @@
       }
     },
     "生物科学": {
-      "paths": 2, "reach": 2, "correct": 2, "recover": 2,
-      "resource_sensitivity": "default",
+      "paths": 2,
+      "reach": 2,
+      "correct": 2,
+      "recover": 2,
+      "resource_sensitivity": "high",
       "ai_impact": "neutral",
       "rationale": {
         "baseline": "长期红牌专业，本科出路窄；非顶尖深造难有理想结果，转行需要从头开始。",
-        "resource": "家庭医疗/生物医药背景能帮助进实验室，但天花板仍受行业限制。",
+        "resource": "原作将生物归入「外行看不清，里面人才知道怎么走」一组——科研型家庭（导师推荐/实验室准入/项目实习/产业转向判断）对路径走通性放大显著，普通家庭学生即使能进实验室也难判断方向。",
         "ai_impact": "AI 加速基因/蛋白研究但本科就业链路弱，加成稀薄。"
       }
     },
     "统计学": {
-      "paths": 4, "reach": 4, "correct": 5, "recover": 4,
+      "paths": 4,
+      "reach": 4,
+      "correct": 5,
+      "recover": 4,
       "resource_sensitivity": "low",
       "ai_impact": "boost",
       "rationale": {
@@ -67,7 +87,10 @@
       }
     },
     "应用数学": {
-      "paths": 4, "reach": 3, "correct": 5, "recover": 4,
+      "paths": 4,
+      "reach": 3,
+      "correct": 5,
+      "recover": 4,
       "resource_sensitivity": "low",
       "ai_impact": "boost",
       "rationale": {
@@ -77,7 +100,10 @@
       }
     },
     "数据科学 / 人工智能": {
-      "paths": 5, "reach": 4, "correct": 5, "recover": 5,
+      "paths": 5,
+      "reach": 4,
+      "correct": 5,
+      "recover": 5,
       "resource_sensitivity": "low",
       "ai_impact": "boost",
       "rationale": {
@@ -87,7 +113,10 @@
       }
     },
     "计算机类 / 软件工程": {
-      "paths": 5, "reach": 4, "correct": 5, "recover": 5,
+      "paths": 5,
+      "reach": 4,
+      "correct": 5,
+      "recover": 5,
       "resource_sensitivity": "low",
       "ai_impact": "boost",
       "rationale": {
@@ -97,7 +126,10 @@
       }
     },
     "信息安全 / 网络工程": {
-      "paths": 4, "reach": 4, "correct": 4, "recover": 4,
+      "paths": 4,
+      "reach": 4,
+      "correct": 4,
+      "recover": 4,
       "resource_sensitivity": "low",
       "ai_impact": "neutral",
       "rationale": {
@@ -107,7 +139,10 @@
       }
     },
     "电子信息工程": {
-      "paths": 4, "reach": 4, "correct": 3, "recover": 4,
+      "paths": 4,
+      "reach": 4,
+      "correct": 3,
+      "recover": 4,
       "resource_sensitivity": "low",
       "ai_impact": "neutral",
       "rationale": {
@@ -117,7 +152,10 @@
       }
     },
     "自动化": {
-      "paths": 4, "reach": 4, "correct": 3, "recover": 4,
+      "paths": 4,
+      "reach": 4,
+      "correct": 3,
+      "recover": 4,
       "resource_sensitivity": "low",
       "ai_impact": "neutral",
       "rationale": {
@@ -127,7 +165,10 @@
       }
     },
     "电气工程": {
-      "paths": 4, "reach": 4, "correct": 3, "recover": 4,
+      "paths": 4,
+      "reach": 4,
+      "correct": 3,
+      "recover": 4,
       "resource_sensitivity": "default",
       "ai_impact": "neutral",
       "rationale": {
@@ -137,7 +178,10 @@
       }
     },
     "机械工程": {
-      "paths": 4, "reach": 4, "correct": 3, "recover": 4,
+      "paths": 4,
+      "reach": 4,
+      "correct": 3,
+      "recover": 4,
       "resource_sensitivity": "default",
       "ai_impact": "neutral",
       "rationale": {
@@ -147,7 +191,10 @@
       }
     },
     "土木工程": {
-      "paths": 2, "reach": 3, "correct": 2, "recover": 2,
+      "paths": 2,
+      "reach": 3,
+      "correct": 2,
+      "recover": 2,
       "resource_sensitivity": "default",
       "ai_impact": "neutral",
       "rationale": {
@@ -157,17 +204,23 @@
       }
     },
     "环境工程": {
-      "paths": 2, "reach": 2, "correct": 3, "recover": 2,
-      "resource_sensitivity": "default",
+      "paths": 2,
+      "reach": 2,
+      "correct": 3,
+      "recover": 2,
+      "resource_sensitivity": "high",
       "ai_impact": "neutral",
       "rationale": {
         "baseline": "长期红牌，岗位需求稀少；环保政策驱动但供需失衡严重，考研/转行路径成本高。",
-        "resource": "政府环保系统人脉对编制岗位有帮助但岗位总量小。",
+        "resource": "科研型家庭（环境/环工博士导师推荐/科研院所通道/项目入口）+ 政府环保系统编制人脉两条放大轴；与生物族同属「外行看不清」组，但市场化路径仍受行业总量约束。",
         "ai_impact": "AI 影响有限——环境监测/治理是实体行业问题。"
       }
     },
     "临床医学": {
-      "paths": 1, "reach": 3, "correct": 1, "recover": 1,
+      "paths": 1,
+      "reach": 3,
+      "correct": 1,
+      "recover": 1,
       "resource_sensitivity": "decisive",
       "ai_impact": "neutral",
       "rationale": {
@@ -177,7 +230,10 @@
       }
     },
     "口腔医学": {
-      "paths": 2, "reach": 3, "correct": 1, "recover": 2,
+      "paths": 2,
+      "reach": 3,
+      "correct": 1,
+      "recover": 2,
       "resource_sensitivity": "high",
       "ai_impact": "neutral",
       "rationale": {
@@ -187,7 +243,10 @@
       }
     },
     "药学": {
-      "paths": 3, "reach": 3, "correct": 2, "recover": 3,
+      "paths": 3,
+      "reach": 3,
+      "correct": 2,
+      "recover": 3,
       "resource_sensitivity": "default",
       "ai_impact": "neutral",
       "rationale": {
@@ -197,7 +256,10 @@
       }
     },
     "护理学": {
-      "paths": 2, "reach": 4, "correct": 2, "recover": 2,
+      "paths": 2,
+      "reach": 4,
+      "correct": 2,
+      "recover": 2,
       "resource_sensitivity": "default",
       "ai_impact": "neutral",
       "rationale": {
@@ -207,7 +269,10 @@
       }
     },
     "经济学": {
-      "paths": 4, "reach": 3, "correct": 4, "recover": 4,
+      "paths": 4,
+      "reach": 3,
+      "correct": 4,
+      "recover": 4,
       "resource_sensitivity": "default",
       "ai_impact": "disrupted",
       "rationale": {
@@ -217,7 +282,10 @@
       }
     },
     "金融学": {
-      "paths": 3, "reach": 2, "correct": 3, "recover": 3,
+      "paths": 3,
+      "reach": 2,
+      "correct": 3,
+      "recover": 3,
       "resource_sensitivity": "high",
       "ai_impact": "disrupted",
       "rationale": {
@@ -227,7 +295,10 @@
       }
     },
     "工商管理": {
-      "paths": 3, "reach": 3, "correct": 4, "recover": 3,
+      "paths": 3,
+      "reach": 3,
+      "correct": 4,
+      "recover": 3,
       "resource_sensitivity": "high",
       "ai_impact": "disrupted",
       "rationale": {
@@ -237,7 +308,10 @@
       }
     },
     "市场营销": {
-      "paths": 3, "reach": 4, "correct": 4, "recover": 3,
+      "paths": 3,
+      "reach": 4,
+      "correct": 4,
+      "recover": 3,
       "resource_sensitivity": "default",
       "ai_impact": "disrupted",
       "rationale": {
@@ -247,7 +321,10 @@
       }
     },
     "国际商务": {
-      "paths": 3, "reach": 3, "correct": 3, "recover": 3,
+      "paths": 3,
+      "reach": 3,
+      "correct": 3,
+      "recover": 3,
       "resource_sensitivity": "high",
       "ai_impact": "disrupted",
       "rationale": {
@@ -257,7 +334,10 @@
       }
     },
     "物流管理": {
-      "paths": 3, "reach": 3, "correct": 3, "recover": 3,
+      "paths": 3,
+      "reach": 3,
+      "correct": 3,
+      "recover": 3,
       "resource_sensitivity": "high",
       "ai_impact": "disrupted",
       "rationale": {
@@ -267,7 +347,10 @@
       }
     },
     "电子商务": {
-      "paths": 4, "reach": 3, "correct": 4, "recover": 3,
+      "paths": 4,
+      "reach": 3,
+      "correct": 4,
+      "recover": 3,
       "resource_sensitivity": "default",
       "ai_impact": "disrupted",
       "rationale": {
@@ -277,7 +360,10 @@
       }
     },
     "供应链管理": {
-      "paths": 4, "reach": 3, "correct": 3, "recover": 3,
+      "paths": 4,
+      "reach": 3,
+      "correct": 3,
+      "recover": 3,
       "resource_sensitivity": "default",
       "ai_impact": "disrupted",
       "rationale": {
@@ -287,7 +373,10 @@
       }
     },
     "会计学": {
-      "paths": 4, "reach": 4, "correct": 4, "recover": 4,
+      "paths": 4,
+      "reach": 4,
+      "correct": 4,
+      "recover": 4,
       "resource_sensitivity": "default",
       "ai_impact": "disrupted",
       "rationale": {
@@ -297,7 +386,10 @@
       }
     },
     "汉语言文学": {
-      "paths": 3, "reach": 3, "correct": 3, "recover": 3,
+      "paths": 3,
+      "reach": 3,
+      "correct": 3,
+      "recover": 3,
       "resource_sensitivity": "default",
       "ai_impact": "threatened",
       "rationale": {
@@ -307,7 +399,10 @@
       }
     },
     "英语/外语": {
-      "paths": 3, "reach": 3, "correct": 4, "recover": 3,
+      "paths": 3,
+      "reach": 3,
+      "correct": 4,
+      "recover": 3,
       "resource_sensitivity": "default",
       "ai_impact": "threatened",
       "rationale": {
@@ -317,7 +412,10 @@
       }
     },
     "新闻传播 / 传播学": {
-      "paths": 3, "reach": 3, "correct": 3, "recover": 3,
+      "paths": 3,
+      "reach": 3,
+      "correct": 3,
+      "recover": 3,
       "resource_sensitivity": "default",
       "ai_impact": "threatened",
       "rationale": {
@@ -327,7 +425,10 @@
       }
     },
     "教育学": {
-      "paths": 3, "reach": 4, "correct": 3, "recover": 3,
+      "paths": 3,
+      "reach": 4,
+      "correct": 3,
+      "recover": 3,
       "resource_sensitivity": "default",
       "ai_impact": "neutral",
       "rationale": {
@@ -337,7 +438,10 @@
       }
     },
     "心理学": {
-      "paths": 3, "reach": 2, "correct": 3, "recover": 3,
+      "paths": 3,
+      "reach": 2,
+      "correct": 3,
+      "recover": 3,
       "resource_sensitivity": "default",
       "ai_impact": "neutral",
       "rationale": {
@@ -347,7 +451,10 @@
       }
     },
     "社会工作": {
-      "paths": 2, "reach": 2, "correct": 3, "recover": 2,
+      "paths": 2,
+      "reach": 2,
+      "correct": 3,
+      "recover": 2,
       "resource_sensitivity": "default",
       "ai_impact": "neutral",
       "rationale": {
@@ -357,7 +464,10 @@
       }
     },
     "法学": {
-      "paths": 2, "reach": 2, "correct": 1, "recover": 2,
+      "paths": 2,
+      "reach": 2,
+      "correct": 1,
+      "recover": 2,
       "resource_sensitivity": "high",
       "ai_impact": "threatened",
       "rationale": {
@@ -367,7 +477,10 @@
       }
     },
     "建筑学": {
-      "paths": 2, "reach": 3, "correct": 2, "recover": 2,
+      "paths": 2,
+      "reach": 3,
+      "correct": 2,
+      "recover": 2,
       "resource_sensitivity": "high",
       "ai_impact": "neutral",
       "rationale": {
@@ -377,7 +490,10 @@
       }
     },
     "艺术类（美术/音乐/表演）": {
-      "paths": 2, "reach": 1, "correct": 2, "recover": 1,
+      "paths": 2,
+      "reach": 1,
+      "correct": 2,
+      "recover": 1,
       "resource_sensitivity": "decisive",
       "ai_impact": "threatened",
       "rationale": {
@@ -387,7 +503,10 @@
       }
     },
     "设计类（视觉传达/产品设计等）": {
-      "paths": 3, "reach": 3, "correct": 3, "recover": 3,
+      "paths": 3,
+      "reach": 3,
+      "correct": 3,
+      "recover": 3,
       "resource_sensitivity": "default",
       "ai_impact": "disrupted",
       "rationale": {
@@ -397,13 +516,832 @@
       }
     },
     "哲学": {
-      "paths": 2, "reach": 2, "correct": 3, "recover": 2,
+      "paths": 2,
+      "reach": 2,
+      "correct": 3,
+      "recover": 2,
       "resource_sensitivity": "default",
       "ai_impact": "neutral",
       "rationale": {
         "baseline": "学术导向强，paths 极窄；本科直接就业极弱，主要靠跨方向考研/考公；correct 受学科基础限制。",
         "resource": "学术圈人脉对深造和教职有帮助但岗位稀少。",
         "ai_impact": "AI 影响有限——哲学训练的批判思辨反而是 AI 时代稀缺技能，但岗位稀缺。"
+      }
+    },
+    "财政学": {
+      "paths": 3,
+      "reach": 3,
+      "correct": 3,
+      "recover": 3,
+      "resource_sensitivity": "high",
+      "ai_impact": "disrupted",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "财税/会计/审计/公务员路径，偏体制内；paths 中等，纯财政岗位窄但考公开放度高。",
+        "resource": "财税系统与体制内人脉对编制岗位有帮助——resource_sensitivity=high。",
+        "ai_impact": "报表合规/税务申报等初级任务被自动化，但政策与预算管理仍需人。"
+      }
+    },
+    "国际经济与贸易": {
+      "paths": 3,
+      "reach": 3,
+      "correct": 3,
+      "recover": 3,
+      "resource_sensitivity": "high",
+      "ai_impact": "disrupted",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "外贸/跨境电商/涉外岗位为主，受地缘与宏观周期影响大，近年路径收窄。",
+        "resource": "家族外贸生意或海外资源直接对接客户与供应链——resource=high。",
+        "ai_impact": "AI 替代翻译/单证/合规检索/初级客户对接，岗位结构性收缩。"
+      }
+    },
+    "金融工程": {
+      "paths": 3,
+      "reach": 3,
+      "correct": 3,
+      "recover": 3,
+      "resource_sensitivity": "high",
+      "ai_impact": "disrupted",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "量化/金融科技/风控，比金融学更重数理；头部回报高但岗位高度筛选。",
+        "resource": "进入头部机构高度依赖学校/实习/圈子——resource=high。",
+        "ai_impact": "量化建模对强者是 AI 杠杆，对弱者是被替代对象，net 偏 disrupted。"
+      }
+    },
+    "投资学": {
+      "paths": 3,
+      "reach": 2,
+      "correct": 3,
+      "recover": 3,
+      "resource_sensitivity": "high",
+      "ai_impact": "disrupted",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "证券/基金/资管方向，与金融学重叠但更窄；reach 受头部平台准入限制。",
+        "resource": "家庭金融业人脉在实习与圈子准入上有显著杠杆——resource=high。",
+        "ai_impact": "初级研究/数据分析被 AI 替代，中高级投研仍需人。"
+      }
+    },
+    "保险学": {
+      "paths": 3,
+      "reach": 3,
+      "correct": 3,
+      "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "disrupted",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "保险/精算/风控，精算资格化路径清晰；普通核保/销售岗天花板低。",
+        "resource": "行业相对开放，精算证书是硬通货，资源加成中等。",
+        "ai_impact": "核保/理赔/定价模型被 AI 覆盖，精算与产品设计仍需人。"
+      }
+    },
+    "财务管理": {
+      "paths": 4,
+      "reach": 4,
+      "correct": 4,
+      "recover": 4,
+      "resource_sensitivity": "default",
+      "ai_impact": "disrupted",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "刚需职能，所有行业都需要，paths 宽；CPA/资格化路径明确，correct 强（可转会计/审计/税务）。",
+        "resource": "资格证书稀释资源依赖，普通财务岗以硬指标为主。",
+        "ai_impact": "AI 自动化记账/对账/合规是直接冲击，但财务分析/管理会计仍需人。"
+      }
+    },
+    "审计学": {
+      "paths": 4,
+      "reach": 4,
+      "correct": 4,
+      "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "disrupted",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "事务所/企业内审/体制内审计，CPA 路径清晰；reach 较好但事务所强度高。",
+        "resource": "资格化路径为主，事务所招聘相对标准化，资源加成中等。",
+        "ai_impact": "AI 自动化凭证抽样/合规检查，但风险判断与现场审计仍需人。"
+      }
+    },
+    "人力资源管理": {
+      "paths": 3,
+      "reach": 3,
+      "correct": 4,
+      "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "disrupted",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "HR 各行业刚需职能，paths 中等；correct 强（可转行政/运营/招聘），上限受平台限制。",
+        "resource": "行业开放度高，证书与经验为主，资源加成有限。",
+        "ai_impact": "AI 自动化简历筛选/初筛/考勤，但组织发展与员工关系仍需人。"
+      }
+    },
+    "行政管理": {
+      "paths": 3,
+      "reach": 3,
+      "correct": 4,
+      "recover": 3,
+      "resource_sensitivity": "high",
+      "ai_impact": "disrupted",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "万金油偏考公，paths 看似宽实则分化；correct 强（考公/企业行政/运营皆可）。",
+        "resource": "体制内人脉对编制岗位有帮助，但考公以笔试硬指标为主——resource=high。",
+        "ai_impact": "AI 替代公文起草/数据汇总等事务性工作，管理协调仍需人。"
+      }
+    },
+    "公共事业管理": {
+      "paths": 2,
+      "reach": 2,
+      "correct": 3,
+      "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "disrupted",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "长期红牌万金油，专业指向模糊，paths 窄；主要靠考公/考研改善出路。",
+        "resource": "事业单位人脉对编制有帮助但岗位总量小，资源加成中等。",
+        "ai_impact": "事务性工作被 AI 替代，专业壁垒弱使其更脆弱。"
+      }
+    },
+    "旅游管理": {
+      "paths": 3,
+      "reach": 3,
+      "correct": 3,
+      "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "disrupted",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "酒店/会展/文旅/在线旅游，行业波动大；correct 中等（可转运营/市场）。",
+        "resource": "家族酒店/旅行社资源直接对接行业入口，但行业开放度较高。",
+        "ai_impact": "AI 替代行程规划/客服/营销文案等初级任务。"
+      }
+    },
+    "工程管理": {
+      "paths": 2,
+      "reach": 3,
+      "correct": 3,
+      "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "造价/项目管理/建筑业管理，与建筑/基建周期强绑定，近年下行使 paths 收窄。",
+        "resource": "建筑/施工/设计院人脉对入行有帮助，但行业整体下行。",
+        "ai_impact": "AI 影响有限——工程管理本质是实体项目协调，低分主因是行业周期。"
+      }
+    },
+    "信息管理与信息系统": {
+      "paths": 4,
+      "reach": 3,
+      "correct": 4,
+      "recover": 4,
+      "resource_sensitivity": "low",
+      "ai_impact": "neutral",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "IT 与管理交叉，paths 较宽（可转数据/产品/IT 实施）；correct 强（可补技能进 CS 邻域）。",
+        "resource": "技能驱动为主，项目作品为信号，资源依赖弱。",
+        "ai_impact": "AI 既冲击也是工具，可向数据/产品方向迁移，net 中性。"
+      }
+    },
+    "政治学与行政学": {
+      "paths": 2,
+      "reach": 2,
+      "correct": 3,
+      "recover": 3,
+      "resource_sensitivity": "high",
+      "ai_impact": "neutral",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "考公/学术/智库为主，本科直接就业弱，paths 窄；高度依赖考公/深造。",
+        "resource": "体制内与学术圈人脉对编制和教职有帮助——resource=high。",
+        "ai_impact": "政策分析/研究有 AI 辅助但岗位仍依赖人际与体制准入。"
+      }
+    },
+    "国际政治": {
+      "paths": 2,
+      "reach": 2,
+      "correct": 2,
+      "recover": 2,
+      "resource_sensitivity": "high",
+      "ai_impact": "neutral",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "外事/国际组织/学术，岗位极少且高度筛选，paths 极窄。",
+        "resource": "外交/涉外系统资源对入行近乎决定性——resource=high。",
+        "ai_impact": "AI 辅助情报分析但准入仍靠体制与人脉，影响有限。"
+      }
+    },
+    "社会学": {
+      "paths": 2,
+      "reach": 2,
+      "correct": 3,
+      "recover": 2,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "学术/社会调查/考公/NGO，本科直接就业弱，主要靠深造或考公。",
+        "resource": "学术圈与机构人脉有帮助但岗位稀少，资源加成中等。",
+        "ai_impact": "定量分析有 AI 辅助，但田野调查与质性研究仍需人。"
+      }
+    },
+    "知识产权": {
+      "paths": 3,
+      "reach": 3,
+      "correct": 2,
+      "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "threatened",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "专利代理/IP 法务，理工背景叠加更吃香；纯法学路径与法学同样锁定，correct 偏弱。",
+        "resource": "事务所/企业 IP 部门相对市场化，资源加成中等。",
+        "ai_impact": "AI 文书生成/专利检索/侵权比对已成熟，普通岗位被显著挤压。"
+      }
+    },
+    "公安学类（侦查学/治安学）": {
+      "paths": 2,
+      "reach": 4,
+      "correct": 2,
+      "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "公安院校入警率高、reach 强，但专业高度锁定为警察职业，paths 极窄、纠偏难。",
+        "resource": "入警以联考/政审硬指标为主，资源加成有限。",
+        "ai_impact": "AI 辅助侦查/技侦但一线执法靠人，net 中性。"
+      }
+    },
+    "思想政治教育 / 马克思主义理论": {
+      "paths": 3,
+      "reach": 4,
+      "correct": 3,
+      "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "高校扩招马院、思政教师/辅导员/考公需求稳定，reach 较好；路径偏体制。",
+        "resource": "教师编制与高校系统人脉有帮助但考编以硬指标为主。",
+        "ai_impact": "AI 辅助备课但思政教学高度依赖人际与价值引导，影响有限。"
+      }
+    },
+    "翻译": {
+      "paths": 2,
+      "reach": 2,
+      "correct": 3,
+      "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "threatened",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "比英语更窄、更聚焦笔译/口译；中传 2025 已撤翻译专业，普通笔译岗萎缩。",
+        "resource": "翻译公司/外事人脉有帮助但行业开放度较高。",
+        "ai_impact": "LLM 翻译接近专业水平，除非垂直领域（法律/医学）或同传，核心受 AI 严重冲击。"
+      }
+    },
+    "日语": {
+      "paths": 3,
+      "reach": 3,
+      "correct": 3,
+      "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "threatened",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "日企/外贸/教育/跨境，比英语略有差异化红利，但仍是个人系数敏感型。",
+        "resource": "日企与留学资源有帮助但行业开放度较高。",
+        "ai_impact": "AI 翻译冲击核心，需叠加专业领域或文化深度才能避险。"
+      }
+    },
+    "小语种（德/法/西/俄等）": {
+      "paths": 2,
+      "reach": 3,
+      "correct": 3,
+      "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "threatened",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "稀缺性带来阶段性红利，但市场窄、波动大，高度依赖叠加方向。",
+        "resource": "外事/外贸/留学资源有帮助但岗位总量小。",
+        "ai_impact": "AI 翻译同样冲击，小语种缓冲期略长但方向单一风险高。"
+      }
+    },
+    "广告学": {
+      "paths": 3,
+      "reach": 3,
+      "correct": 3,
+      "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "threatened",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "创意/策划/新媒体营销，paths 中等；correct 可转运营/品牌/内容。",
+        "resource": "广告/MCN 资源有帮助但行业相对开放。",
+        "ai_impact": "AI 生成文案/海报/投放优化直接冲击执行岗，创意策略仍需人。"
+      }
+    },
+    "网络与新媒体": {
+      "paths": 3,
+      "reach": 3,
+      "correct": 3,
+      "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "threatened",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "内容/运营/短视频/社媒，行业增长但岗位同质化，paths 中等。",
+        "resource": "平台/MCN 资源有帮助但行业开放度高。",
+        "ai_impact": "AIGC 自动化内容生产与运营是核心冲击点，头部创意仍稀缺。"
+      }
+    },
+    "编辑出版学": {
+      "paths": 2,
+      "reach": 2,
+      "correct": 3,
+      "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "threatened",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "传统出版收缩、数字出版转型，paths 窄；correct 可转新媒体/文案。",
+        "resource": "出版社/媒体人脉有帮助但行业整体收缩。",
+        "ai_impact": "AI 辅助校对/排版/选题，初级编辑岗结构性减少。"
+      }
+    },
+    "汉语国际教育": {
+      "paths": 2,
+      "reach": 2,
+      "correct": 3,
+      "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "threatened",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "对外汉语/国际中文教育，海外岗位与孔院随地缘波动，paths 窄。",
+        "resource": "海外院校与汉办资源有帮助但岗位不稳定。",
+        "ai_impact": "AI 语言教学工具普及，初级语言教学受冲击。"
+      }
+    },
+    "历史学": {
+      "paths": 2,
+      "reach": 3,
+      "correct": 3,
+      "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "历史教师/考公/学术/文博，本科直接就业偏窄；师范与考公路径较稳。",
+        "resource": "教师编制/文博系统人脉有帮助但相对开放。",
+        "ai_impact": "AI 影响有限——史学训练的考据与叙事仍需人，但岗位本就有限。"
+      }
+    },
+    "考古学": {
+      "paths": 2,
+      "reach": 2,
+      "correct": 2,
+      "recover": 2,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "考古所/博物馆/高校，岗位稀少且需深造，paths 极窄；近年关注度上升但供需仍紧。",
+        "resource": "学术圈与文博系统人脉对编制有帮助但岗位极少。",
+        "ai_impact": "AI 辅助文物分析/年代测定，但田野发掘与研究仍需人。"
+      }
+    },
+    "文物与博物馆学": {
+      "paths": 2,
+      "reach": 2,
+      "correct": 2,
+      "recover": 2,
+      "resource_sensitivity": "high",
+      "ai_impact": "neutral",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "博物馆/文物保护/文创，事业单位编制为主，paths 窄、纠偏难。",
+        "resource": "文博事业单位人脉对编制有显著帮助——resource=high。",
+        "ai_impact": "AI 辅助数字化展陈/修复但鉴定与策展仍需人。"
+      }
+    },
+    "学前教育": {
+      "paths": 2,
+      "reach": 4,
+      "correct": 3,
+      "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "幼师就业稳定但天花板低、薪资偏弱，paths 窄；出生率下行使长期需求承压。",
+        "resource": "幼教系统人脉对编制有帮助但天花板受行业限制。",
+        "ai_impact": "强人际+情感劳动，AI 难替代，但生源下行是结构性压力。"
+      }
+    },
+    "小学教育": {
+      "paths": 3,
+      "reach": 4,
+      "correct": 3,
+      "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "小学教师编制稳定、reach 好；paths 中等（可跨学科任教/考公），受生源下行影响。",
+        "resource": "教师编制系统人脉有帮助但考编以硬指标为主。",
+        "ai_impact": "强人际，AI 辅助教学但替代有限——教学本质是关系建立。"
+      }
+    },
+    "体育教育 / 体育类": {
+      "paths": 2,
+      "reach": 3,
+      "correct": 2,
+      "recover": 2,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "体育教师/教练/健身，路径较单一，纠偏需重学其他专业，paths 窄。",
+        "resource": "体校/俱乐部人脉有帮助但天花板受行业限制。",
+        "ai_impact": "强身体技能与人际，AI 难替代但岗位面窄。"
+      }
+    },
+    "地理科学": {
+      "paths": 3,
+      "reach": 3,
+      "correct": 3,
+      "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "地理教师/GIS/城乡规划/环境，师范与 GIS 路径较稳，paths 中等。",
+        "resource": "教师编制与规划院人脉有帮助但相对开放。",
+        "ai_impact": "GIS/遥感有 AI 加持也被自动化，教师与规划仍需人，net 中性。"
+      }
+    },
+    "数字媒体技术": {
+      "paths": 4,
+      "reach": 3,
+      "correct": 4,
+      "recover": 3,
+      "resource_sensitivity": "low",
+      "ai_impact": "disrupted",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "游戏/影视特效/UI/交互，技术+艺术复合，paths 较宽；correct 强（可转 CS/产品）。",
+        "resource": "作品集与技能为主，资源加成弱。",
+        "ai_impact": "AIGC 既是生产力工具也冲击执行岗，强者受益、弱者承压，net disrupted。"
+      }
+    },
+    "通信工程": {
+      "paths": 4,
+      "reach": 4,
+      "correct": 3,
+      "recover": 4,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "电子族成员，5G/通信/网络设备产业承接明确；纯硬件方向 correct 略弱。",
+        "resource": "硬技能驱动，制造业有一定关系敏感度但以技能为主。",
+        "ai_impact": "AI 推升网络智能化但本科就业链路稳定。"
+      }
+    },
+    "材料科学与工程": {
+      "paths": 2,
+      "reach": 3,
+      "correct": 3,
+      "recover": 2,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "红牌偏化工/冶金，本科就业弱、深造导向强，paths 窄、纠偏成本高。",
+        "resource": "材料/制造企业有一定关系敏感度但行业整体一般。",
+        "ai_impact": "AI 加速材料设计但本科就业链路（工艺/质检/研发助理）变化有限。"
+      }
+    },
+    "化学工程与工艺": {
+      "paths": 3,
+      "reach": 3,
+      "correct": 3,
+      "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "化工/能源/制药，国企岗位稳定但工作环境与地点受限，paths 中等。",
+        "resource": "化工/石化企业有一定关系敏感度但以技能/资格为主。",
+        "ai_impact": "AI 加速工艺优化但本科就业链路（工艺/安全/生产）稳定。"
+      }
+    },
+    "能源与动力工程": {
+      "paths": 3,
+      "reach": 4,
+      "correct": 3,
+      "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "电力/能源/暖通，国企与制造业入口清晰，reach 较好；新能源带来新方向。",
+        "resource": "电力/能源国企有一定关系敏感度但技能为硬指标。",
+        "ai_impact": "强实体工程属性，AI 冲击有限——能源基础设施靠人。"
+      }
+    },
+    "食品科学与工程": {
+      "paths": 3,
+      "reach": 3,
+      "correct": 3,
+      "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "食品企业/质检/研发，行业稳定但薪资天花板低，paths 中等。",
+        "resource": "食品企业人脉有帮助但行业开放度较高。",
+        "ai_impact": "AI 加速研发/质控但本科就业链路稳定。"
+      }
+    },
+    "生物医学工程": {
+      "paths": 3,
+      "reach": 3,
+      "correct": 3,
+      "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "医疗器械/影像设备/医工交叉，深造导向，paths 中等且需补专业技能。",
+        "resource": "医疗器械企业人脉有帮助但以技能/学历为主。",
+        "ai_impact": "AI 推升智能医疗设备需求，本科就业链路相对稳定。"
+      }
+    },
+    "航空航天类": {
+      "paths": 3,
+      "reach": 4,
+      "correct": 3,
+      "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "航空/航天院所与国企，体制内入口清晰、reach 好；专业较锁定，paths 偏窄。",
+        "resource": "院所/军工系统有一定关系敏感度但技能/政审为硬门槛。",
+        "ai_impact": "强实体高壁垒属性，AI 冲击有限。"
+      }
+    },
+    "车辆工程": {
+      "paths": 3,
+      "reach": 4,
+      "correct": 3,
+      "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "汽车/新能源车产业链承接稳定，新能源回暖带来新方向，reach 较好。",
+        "resource": "制造业有一定家族关系敏感度但技能为主。",
+        "ai_impact": "AI/智能驾驶推升需求，本科就业链路稳定。"
+      }
+    },
+    "动物医学": {
+      "paths": 3,
+      "reach": 4,
+      "correct": 3,
+      "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "宠物医疗/畜牧/检疫，宠物经济上行使 reach 走高；执业兽医资格化路径清晰。",
+        "resource": "宠物医院/养殖企业相对市场化，资源加成中等。",
+        "ai_impact": "AI 辅助诊断但操作与临床靠人，net 中性。"
+      }
+    },
+    "农学类（农学/园艺/植物保护）": {
+      "paths": 2,
+      "reach": 3,
+      "correct": 2,
+      "recover": 2,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "涉农红牌专业，岗位地点与薪资受限，paths 窄、纠偏难；考公/考研改善有限。",
+        "resource": "涉农系统与农企人脉有帮助但行业整体待遇偏弱。",
+        "ai_impact": "AI/智慧农业提效但本科就业链路变化有限。"
+      }
+    },
+    "中医学": {
+      "paths": 2,
+      "reach": 3,
+      "correct": 1,
+      "recover": 2,
+      "resource_sensitivity": "high",
+      "ai_impact": "neutral",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "长学制+规培壁垒，专业高度锁定类似临床，但可开诊所、市场化略高。",
+        "resource": "中医世家/师承与诊所资源加成明显——resource=high。",
+        "ai_impact": "AI 辅助辨证但诊疗靠经验与人际，准入未变，net 中性。"
+      }
+    },
+    "中药学": {
+      "paths": 3,
+      "reach": 3,
+      "correct": 2,
+      "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "中药制药/医院药房/质检，paths 比中医学宽；correct 受执业资格限制。",
+        "resource": "医药销售/药企有一定关系敏感度。",
+        "ai_impact": "AI 加速成分研究但本科就业链路（药房/质检/生产）稳定。"
+      }
+    },
+    "预防医学": {
+      "paths": 2,
+      "reach": 3,
+      "correct": 2,
+      "recover": 2,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "疾控/公卫/卫生监督，编制为主、paths 窄；后疫情阶段需求有波动。",
+        "resource": "疾控系统人脉对编制有帮助但岗位总量有限。",
+        "ai_impact": "AI 辅助流行病学建模但现场公卫与管理靠人。"
+      }
+    },
+    "医学影像学": {
+      "paths": 2,
+      "reach": 4,
+      "correct": 2,
+      "recover": 2,
+      "resource_sensitivity": "high",
+      "ai_impact": "disrupted",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "医技岗位就业较好、reach 高，但专业锁定、纠偏难，paths 窄。",
+        "resource": "医院系统人脉对科室与编制有显著影响——resource=high。",
+        "ai_impact": "AI 影像辅助诊断是直接冲击点，初级读片任务被显著替代。"
+      }
+    },
+    "康复治疗学": {
+      "paths": 2,
+      "reach": 4,
+      "correct": 2,
+      "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "neutral",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "康复需求随老龄化上行、reach 较好；专业锁定，paths 偏窄。",
+        "resource": "医院/康复机构人脉有帮助但以资格为主。",
+        "ai_impact": "强人际+操作技能，AI 难替代——康复本质是手法与陪伴。"
+      }
+    },
+    "戏剧与影视类（播音/编导/表演）": {
+      "paths": 2,
+      "reach": 2,
+      "correct": 2,
+      "recover": 1,
+      "resource_sensitivity": "decisive",
+      "ai_impact": "threatened",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "播音/编导/表演，少数人发展好、多数人难稳定；艺考沉没成本+单一路径双重锁定。",
+        "resource": "圈子/院团/资源对成败近乎决定性——resource=decisive。",
+        "ai_impact": "AI 生成内容冲击商业市场，纯创作仍需人但养活路径收窄。"
+      }
+    },
+    "数字媒体艺术": {
+      "paths": 3,
+      "reach": 3,
+      "correct": 3,
+      "recover": 3,
+      "resource_sensitivity": "default",
+      "ai_impact": "disrupted",
+      "_source": "v3.17-coverage-expansion",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "比纯艺术 paths 宽（UI/动效/游戏美术/交互），但平台依赖大；correct 中等。",
+        "resource": "作品集为主，资源加成有限，比纯艺术开放度高。",
+        "ai_impact": "AIGC 大幅提效也替代执行岗，需向创意/技术复合方向避险。"
       }
     }
   },
@@ -424,8 +1362,7 @@
     "新闻传播": "新闻传播 / 传播学",
     "传播学": "新闻传播 / 传播学",
     "新闻传播/传播学": "新闻传播 / 传播学",
-    "国际经济与贸易": "国际商务",
-    "国贸": "国际商务",
+    "国贸": "国际经济与贸易",
     "英语": "英语/外语",
     "外语": "英语/外语",
     "设计学": "设计类（视觉传达/产品设计等）",
@@ -435,11 +1372,47 @@
     "音乐": "艺术类（美术/音乐/表演）",
     "表演": "艺术类（美术/音乐/表演）",
     "艺术": "艺术类（美术/音乐/表演）",
-    "集成电路": "微电子"
+    "集成电路": "微电子",
+    "生命科学": "生物科学",
+    "生物技术": "生物科学",
+    "环境科学": "环境工程",
+    "环境科学与工程": "环境工程",
+    "生物制药": "生物工程",
+    "生物制造": "生物工程",
+    "财管": "财务管理",
+    "人力资源": "人力资源管理",
+    "HR": "人力资源管理",
+    "政治学": "政治学与行政学",
+    "学前": "学前教育",
+    "小教": "小学教育",
+    "中医": "中医学",
+    "数媒": "数字媒体技术",
+    "兽医": "动物医学",
+    "思想政治教育": "思想政治教育 / 马克思主义理论",
+    "马克思主义理论": "思想政治教育 / 马克思主义理论",
+    "马理论": "思想政治教育 / 马克思主义理论",
+    "侦查学": "公安学类（侦查学/治安学）",
+    "治安学": "公安学类（侦查学/治安学）",
+    "公安学": "公安学类（侦查学/治安学）",
+    "德语": "小语种（德/法/西/俄等）",
+    "法语": "小语种（德/法/西/俄等）",
+    "西班牙语": "小语种（德/法/西/俄等）",
+    "俄语": "小语种（德/法/西/俄等）",
+    "农学": "农学类（农学/园艺/植物保护）",
+    "园艺": "农学类（农学/园艺/植物保护）",
+    "植物保护": "农学类（农学/园艺/植物保护）",
+    "播音主持": "戏剧与影视类（播音/编导/表演）",
+    "广播电视编导": "戏剧与影视类（播音/编导/表演）",
+    "体育教育": "体育教育 / 体育类",
+    "体育类": "体育教育 / 体育类",
+    "通信": "通信工程"
   },
   "_user_additions": {
     "微电子": {
-      "paths": 4, "reach": 4, "correct": 3, "recover": 4,
+      "paths": 4,
+      "reach": 4,
+      "correct": 3,
+      "recover": 4,
       "resource_sensitivity": "default",
       "ai_impact": "neutral",
       "_source": "origin-article-anchor",
@@ -449,6 +1422,22 @@
         "baseline": "原文锚点：与电气工程同级 4×4×3×4=192（电气工程 / 微电子 / 机械电子）。芯片设计/制造/封测路径清晰；本科直接就业偏窄，硕士起步是主流。correct=3 因转方向需补 CS/电子知识。",
         "resource": "实习/内推对入行有帮助，但芯片行业整体仍是硬技能/学历驱动，资源加成中等。",
         "ai_impact": "AI 辅助 EDA 提效但不重构职业路径；半导体周期性强于 AI 直接冲击。"
+      }
+    },
+    "生物工程": {
+      "paths": 2,
+      "reach": 2,
+      "correct": 2,
+      "recover": 2,
+      "resource_sensitivity": "high",
+      "ai_impact": "neutral",
+      "_source": "fengling-family-resource-article",
+      "_date": "2026-06-27",
+      "_confidence": "medium",
+      "rationale": {
+        "baseline": "区别于偏基础研究的生物科学，生物工程偏产业工程化（生物制药/医疗器械/生物制造/生物医学工程）；本科兑现弱，主流读研/读博；行业入口虽比生物科学略实在，但整体仍是长周期、慢回报路径。",
+        "resource": "原作锚点（2026-06-22）：父母为头部科研机构生物/环境方向博士的家庭，对生物工程路径具有决定性放大——导师推荐、实验室准入、产业转向判断、早期实习对接，外行家庭难以复制。与医学/法学/建筑同属「外行看不清」组。",
+        "ai_impact": "AI 加速分子设计/筛选/CADD 但本科就业链路（中试/工艺/质检/法规事务）改变有限。"
       }
     }
   }
